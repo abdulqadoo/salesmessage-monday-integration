@@ -156,20 +156,22 @@ async function createUpdate(itemId, message) {
 // =====================================
 async function createTimelineItem(itemId, title, message) {
 
-   const mutation = `
-    mutation CreateTimeline(
-        $itemId: ID!,
-        $activityId: String!,
-        $title: String!,
-        $content: String!,
-        $timestamp: String!
-    ) {
+    const mutation = `
+        mutation CreateTimelineItem($itemId: ID!, $title: String!, $content: String!) {
+            create_timeline_item(
+                item_id: $itemId,
+                title: $title,
+                content: $content
+            ) {
+                id
+            }
+        }
+    `;
+
     const variables = {
         itemId: String(itemId),
-        activityId: "cf290fab-7393-4ab4-9af2-37e1e45e9e5b",
-        title,
-        content: message,
-        timestamp: new Date().toISOString()
+        title: title,
+        content: message
     };
 
     try {
@@ -198,9 +200,7 @@ async function createTimelineItem(itemId, title, message) {
         }
 
         throw error;
-
     }
-
 }
 
 module.exports = {
