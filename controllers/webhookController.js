@@ -76,41 +76,44 @@ exports.contactWebhook = async (req, res) => {
 
             let update = "";
 
-            if (event === "message.sent") {
+const senderName =
+    event === "message.sent"
+        ? data.user?.full_name || "Unknown User"
+        : data.contact?.full_name || "Unknown Contact";
 
-    update = `
-OUTGOING SMS
+const senderPhone =
+    event === "message.sent"
+        ? data.number?.formatted_number || ""
+        : data.contact?.formatted_number || "";
 
-Message:
+const receiverName =
+    event === "message.sent"
+        ? data.contact?.full_name || "Unknown Contact"
+        : data.user?.full_name || data.inbox?.name || "Unknown User";
+
+const receiverPhone =
+    event === "message.sent"
+        ? data.contact?.formatted_number || ""
+        : data.number?.formatted_number || "";
+
+const direction =
+    event === "message.sent"
+        ? "OUTGOING SMS"
+        : "INCOMING SMS";
+
+update = `
+${direction}
+
 ${data.message.body}
 
 From:
-${data.user.full_name}
-${data.number.formatted_number}
+${senderName}
+${senderPhone}
 
 To:
-${data.contact.full_name}
-${data.contact.formatted_number}
+${receiverName}
+${receiverPhone}
 `;
-
-} else {
-
-    update = `
-INCOMING SMS
-
-Message:
-${data.message.body}
-
-From:
-${data.contact.full_name}
-${data.contact.formatted_number}
-
-To:
-${data.user?.full_name || "Unknown User"}
-${data.number.formatted_number}
-`;
-
-}
 
             console.log("Creating update for item:", itemId);
             console.log(update);
@@ -139,15 +142,7 @@ await createTimelineItem(
 
         }
 
-        // ===============================
-// TEST TIMELINE
-// ===============================
-await createTimelineItem(
-    "12400579143", // Replace with your actual Monday item ID if different
-    "Test SMS",
-    "Message:<br>This is a Railway test.<br><br>From:<br>Abdul Qadoos<br><br>To:<br>Ash Berkowitz",
-    new Date().toISOString()
-);// Ignore unsupported events
+        // Ignore unsupported events
         return res.status(200).json({
             success: true
         });
