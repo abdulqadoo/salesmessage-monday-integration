@@ -1,3 +1,4 @@
+const { getMessageById } = require("../services/salesMessageService");
 const {
     searchByPhone,
     createItem,
@@ -116,6 +117,10 @@ ${receiverPhone}
 `;
 
             console.log("Creating update for item:", itemId);
+        // TEMPORARY: inspect full message details to find the media field
+if (data.message?.type === "mms") {
+    await getMessageById(data.message.id);
+}
             console.log(update);
 
             const title = event === "message.sent"
