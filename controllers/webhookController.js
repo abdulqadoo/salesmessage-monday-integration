@@ -76,32 +76,32 @@ exports.contactWebhook = async (req, res) => {
 
             let update = "";
 
-const senderName =
-    event === "message.sent"
-        ? data.user?.full_name || "Unknown User"
-        : data.contact?.full_name || "Unknown Contact";
+            const senderName =
+                event === "message.sent"
+                    ? data.user?.full_name || "Unknown User"
+                    : data.contact?.full_name || "Unknown Contact";
 
-const senderPhone =
-    event === "message.sent"
-        ? data.number?.formatted_number || ""
-        : data.contact?.formatted_number || "";
+            const senderPhone =
+                event === "message.sent"
+                    ? data.number?.formatted_number || ""
+                    : data.contact?.formatted_number || "";
 
-const receiverName =
-    event === "message.sent"
-        ? data.contact?.full_name || "Unknown Contact"
-        : data.user?.full_name || data.inbox?.name || "Unknown User";
+            const receiverName =
+                event === "message.sent"
+                    ? data.contact?.full_name || "Unknown Contact"
+                    : data.user?.full_name || data.inbox?.name || "Unknown User";
 
-const receiverPhone =
-    event === "message.sent"
-        ? data.contact?.formatted_number || ""
-        : data.number?.formatted_number || "";
+            const receiverPhone =
+                event === "message.sent"
+                    ? data.contact?.formatted_number || ""
+                    : data.number?.formatted_number || "";
 
-const direction =
-    event === "message.sent"
-        ? "OUTGOING SMS"
-        : "INCOMING SMS";
+            const direction =
+                event === "message.sent"
+                    ? "OUTGOING SMS"
+                    : "INCOMING SMS";
 
-update = `
+            update = `
 ${direction}
 
 ${data.message.body}
@@ -118,16 +118,16 @@ ${receiverPhone}
             console.log("Creating update for item:", itemId);
             console.log(update);
 
-   const title = event === "message.sent"
-    ? "Outgoing SMS"
-    : "Incoming SMS";
+            const title = event === "message.sent"
+                ? "Outgoing SMS"
+                : "Incoming SMS";
 
-await createTimelineItem(
-    itemId,
-    title,
-    update.replace(/\n/g, "<br>"),
-    new Date().toISOString()
-);
+            // Using createUpdate (simple Updates tab post) instead of createTimelineItem
+            // createTimelineItem requires a custom_activity_id we're skipping for now
+            await createUpdate(
+                itemId,
+                update.replace(/\n/g, "<br>")
+            );
 
             console.log("✅ Monday update created.");
 
