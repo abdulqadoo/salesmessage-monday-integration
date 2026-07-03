@@ -157,11 +157,12 @@ async function createUpdate(itemId, message) {
 async function createTimelineItem(itemId, title, message) {
 
     const mutation = `
-        mutation CreateTimelineItem($itemId: ID!, $title: String!, $content: String!) {
+        mutation CreateTimelineItem($itemId: ID!, $title: String!, $content: String!, $timestamp: ISO8601DateTime!) {
             create_timeline_item(
                 item_id: $itemId,
                 title: $title,
-                content: $content
+                content: $content,
+                timestamp: $timestamp
             ) {
                 id
             }
@@ -171,7 +172,8 @@ async function createTimelineItem(itemId, title, message) {
     const variables = {
         itemId: String(itemId),
         title: title,
-        content: message
+        content: message,
+        timestamp: new Date().toISOString()
     };
 
     try {
