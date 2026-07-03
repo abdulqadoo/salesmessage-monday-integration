@@ -198,6 +198,7 @@ async function createTimelineItem(itemId, title, message) {
         if (error.response) {
             console.log(JSON.stringify(error.response.data, null, 2));
         } else {
+            console.log("REAL ERROR MESSAGE >>>", error.response?.data?.errors?.[0]?.message);
             console.log(error.message);
         }
 
