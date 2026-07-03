@@ -156,27 +156,14 @@ async function createUpdate(itemId, message) {
 // =====================================
 async function createTimelineItem(itemId, title, message) {
 
-    const mutation = `
-        mutation CreateTimeline(
-            $itemId: ID!,
-            $activityId: ID!,
-            $title: String!,
-            $content: String!,
-            $timestamp: DateTime!
-        ) {
-            create_timeline_item(
-                item_id: $itemId,
-                custom_activity_id: $activityId,
-                title: $title,
-                summary: "",
-                content: $content,
-                timestamp: $timestamp
-            ) {
-                id
-            }
-        }
-    `;
-
+   const mutation = `
+    mutation CreateTimeline(
+        $itemId: ID!,
+        $activityId: String!,
+        $title: String!,
+        $content: String!,
+        $timestamp: String!
+    ) {
     const variables = {
         itemId: String(itemId),
         activityId: "cf290fab-7393-4ab4-9af2-37e1e45e9e5b",
