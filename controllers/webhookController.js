@@ -1,7 +1,8 @@
 const {
     searchByPhone,
     createItem,
-    createUpdate
+    createUpdate,
+    createTimelineItem
 } = require("../services/mondayService");
 
 exports.contactWebhook = async (req, res) => {
@@ -85,9 +86,11 @@ ${data.message.body}
 
 From:
 ${data.user.full_name}
+${data.number.formatted_number}
 
 To:
 ${data.contact.full_name}
+${data.contact.formatted_number}
 `;
 
 } else {
@@ -100,9 +103,11 @@ ${data.message.body}
 
 From:
 ${data.contact.full_name}
+${data.contact.formatted_number}
 
 To:
 ${data.user?.full_name || "Unknown User"}
+${data.number.formatted_number}
 `;
 
 }
@@ -110,7 +115,21 @@ ${data.user?.full_name || "Unknown User"}
             console.log("Creating update for item:", itemId);
             console.log(update);
 
-            await createUpdate(itemId, update);
+        const title = event === "message.sent"
+    ? "Outgoing SMS"
+    : "Incoming SMS";
+
+const timestamp =
+    data.message.sent_at ||
+    data.message.received_at ||
+    new Date().toISOString();
+
+await createTimelineItem(
+    itemId,
+    title,
+    update.replace(/\n/g, "<br>"),
+    timestamp
+);
 
             console.log("✅ Monday update created.");
 
@@ -120,7 +139,15 @@ ${data.user?.full_name || "Unknown User"}
 
         }
 
-        // Ignore unsupported events
+        // ===============================
+// TEST TIMELINE
+// ===============================
+await createTimelineItem(
+    "12400579143", // Replace with your actual Monday item ID if different
+    "Test SMS",
+    "Message:<br>This is a Railway test.<br><br>From:<br>Abdul Qadoos<br><br>To:<br>Ash Berkowitz",
+    new Date().toISOString()
+);// Ignore unsupported events
         return res.status(200).json({
             success: true
         });

@@ -149,9 +149,52 @@ async function createUpdate(itemId, message) {
 
 }
 
+// =====================================
+// CREATE TIMELINE ACTIVITY (SMS)
+// =====================================
+async function createTimelineItem(itemId, title, message, timestamp) {
+
+    const mutation = `
+        mutation {
+            create_timeline_item(
+                item_id: ${itemId},
+                custom_activity_id: "cf290fab-7393-4ab4-9af2-37e1e45e9e5b",
+                title: ${JSON.stringify(title)},
+                summary: "",
+                content: ${JSON.stringify(message)},
+                timestamp: "${timestamp}"
+            ) {
+                id
+            }
+        }
+    `;
+
+    try {
+
+        const response = await monday.post("", {
+            query: mutation
+        });
+
+        console.log("Timeline Activity Response:");
+        console.log(response.data);
+
+        return response.data.data.create_timeline_item;
+
+    } catch (error) {
+
+        console.log("Timeline Activity Error:");
+        console.log(error.response?.data || error.message);
+
+        throw error;
+
+    }
+
+}
+
 module.exports = {
     searchByPhone,
     createItem,
     updateItem,
-    createUpdate
+    createUpdate,
+    createTimelineItem
 };
