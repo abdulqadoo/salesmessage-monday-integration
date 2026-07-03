@@ -7,6 +7,7 @@ const PHONE_COLUMN = process.env.PHONE_COLUMN;
 // SEARCH ITEM BY PHONE
 // =====================================
 async function searchByPhone(phone) {
+
     const query = `
         query {
             items_page_by_column_values(
@@ -37,6 +38,7 @@ async function searchByPhone(phone) {
         return [];
 
     }
+
 }
 
 // =====================================
@@ -150,40 +152,63 @@ async function createUpdate(itemId, message) {
 }
 
 // =====================================
-// CREATE TIMELINE ACTIVITY (SMS)
+// CREATE TIMELINE ACTIVITY (EMAIL & ACTIVITIES)
 // =====================================
-async function createTimelineItem(itemId, title, message, timestamp) {
+async function createTimelineItem(itemId, title, message) {
 
     const mutation = `
-        mutation {
+        mutation CreateTimeline(
+            $itemId: ID!,
+            $activityId: ID!,
+            $title: String!,
+            $content: String!,
+            $timestamp: DateTime!
+        ) {
             create_timeline_item(
-                item_id: ${itemId},
-                custom_activity_id: "cf290fab-7393-4ab4-9af2-37e1e45e9e5b",
-                title: ${JSON.stringify(title)},
+                item_id: $itemId,
+                custom_activity_id: $activityId,
+                title: $title,
                 summary: "",
-                content: ${JSON.stringify(message)},
-                timestamp: "${timestamp}"
+                content: $content,
+                timestamp: $timestamp
             ) {
                 id
             }
         }
     `;
 
+    const variables = {
+        itemId: String(itemId),
+        activityId: "cf290fab-7393-4ab4-9af2-37e1e45e9e5b",
+        title,
+        content: message,
+        timestamp: new Date().toISOString()
+    };
+
     try {
 
+        console.log("====== TIMELINE VARIABLES ======");
+        console.log(JSON.stringify(variables, null, 2));
+
         const response = await monday.post("", {
-            query: mutation
+            query: mutation,
+            variables
         });
 
-        console.log("Timeline Activity Response:");
-        console.log(response.data);
+        console.log("====== TIMELINE RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
 
         return response.data.data.create_timeline_item;
 
     } catch (error) {
 
-        console.log("Timeline Activity Error:");
-        console.log(error.response?.data || error.message);
+        console.log("====== TIMELINE ERROR ======");
+
+        if (error.response) {
+            console.log(JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.log(error.message);
+        }
 
         throw error;
 
