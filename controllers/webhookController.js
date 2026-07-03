@@ -73,66 +73,39 @@ exports.contactWebhook = async (req, res) => {
                 data.message?.sent_at || data.message?.received_at || new Date()
             );
 
-            const formattedDate = messageDate.toLocaleString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true
-            });
-
             let update = "";
 
             if (event === "message.sent") {
 
-                update = `
-📤 OUTGOING SMS
+    update = `
+OUTGOING SMS
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+Message:
+${data.message.body}
 
-👤 From
-${data.user?.full_name || "Unknown User"}
-${data.number?.formatted_number || data.number?.number || ""}
+From:
+${data.user.full_name}
 
-👥 To
-${data.contact?.full_name || "Unknown Contact"}
-${data.contact?.formatted_number || data.contact?.number || ""}
-
-💬 Message
-
-${data.message?.body || ""}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🕒 ${formattedDate}
+To:
+${data.contact.full_name}
 `;
 
-            } else {
+} else {
 
-                update = `
-📥 INCOMING SMS
+    update = `
+INCOMING SMS
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+Message:
+${data.message.body}
 
-👤 From
-${data.contact?.full_name || "Unknown Contact"}
-${data.contact?.formatted_number || data.contact?.number || ""}
+From:
+${data.contact.full_name}
 
-👥 To
+To:
 ${data.user?.full_name || "Unknown User"}
-${data.number?.formatted_number || data.number?.number || ""}
-
-💬 Message
-
-${data.message?.body || ""}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🕒 ${formattedDate}
 `;
 
-            }
+}
 
             console.log("Creating update for item:", itemId);
             console.log(update);
