@@ -118,20 +118,15 @@ ${receiverPhone}
             console.log("Creating update for item:", itemId);
             console.log(update);
 
-        const title = event === "message.sent"
+   const title = event === "message.sent"
     ? "Outgoing SMS"
     : "Incoming SMS";
-
-const timestamp =
-    data.message.sent_at ||
-    data.message.received_at ||
-    new Date().toISOString();
 
 await createTimelineItem(
     itemId,
     title,
     update.replace(/\n/g, "<br>"),
-    timestamp
+    new Date().toISOString()
 );
 
             console.log("✅ Monday update created.");
