@@ -1,4 +1,4 @@
-const { getMessageById } = require("../services/salesMessageService");
+const { getRecentAttachment } = require("../services/salesMessageService");
 const {
     searchByPhone,
     createItem,
