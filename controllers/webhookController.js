@@ -119,7 +119,7 @@ ${receiverPhone}
             console.log("Creating update for item:", itemId);
         // TEMPORARY: inspect full message details to find the media field
 if (data.message?.type === "mms") {
-    await getMessageById(data.message.id);
+    await getRecentAttachment();
 }
             console.log(update);
 
