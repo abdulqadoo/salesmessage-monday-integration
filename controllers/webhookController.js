@@ -3,8 +3,11 @@ const {
     searchByPhone,
     createItem,
     createUpdate,
-    createTimelineItem
+    createTimelineItem,
+    addFileToUpdateFromUrl
 } = require("../services/mondayService");
+
+const { getRecentAttachment } = require("../services/salesMessageService");
 
 exports.contactWebhook = async (req, res) => {
 
@@ -129,18 +132,32 @@ if (data.message?.type === "mms") {
 
             // Using createUpdate (simple Updates tab post) instead of createTimelineItem
             // createTimelineItem requires a custom_activity_id we're skipping for now
-            await createUpdate(
-                itemId,
-                update.replace(/\n/g, "<br>")
-            );
+           // If this was an MMS, attach the image to the same update
+if (data.message?.type === "mms") {
 
-            console.log("✅ Monday update created.");
+    const attachment = await getRecentAttachment();
 
-            return res.status(200).json({
-                success: true
-            });
+    if (attachment) {
+        const updateResult = await createUpdate(
+            itemId,
+            update.replace(/\n/g, "<br>")
+        );
 
-        }
+        await addFileToUpdateFromUrl(
+            updateResult.id,
+            attachment.url,
+            attachment.name
+        );
+
+        console.log("✅ Image attached to Monday update.");
+    }
+
+} else {
+    await createUpdate(
+        itemId,
+        update.replace(/\n/g, "<br>")
+    );
+}
 
         // Ignore unsupported events
         return res.status(200).json({

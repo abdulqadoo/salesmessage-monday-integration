@@ -1,3 +1,5 @@
+const axios = require("axios");
+const FormData = require("form-data");
 const monday = require("../config/monday");
 
 const BOARD_ID = process.env.BOARD_ID;
@@ -206,10 +208,73 @@ async function createTimelineItem(itemId, title, message) {
     }
 }
 
+// =====================================
+// UPLOAD FILE TO UPDATE (from a URL)
+// =====================================
+async function addFileToUpdateFromUrl(updateId, imageUrl, fileName) {
+
+    try {
+
+        // Step 1: Download the image into memory
+        const imageResponse = await axios.get(imageUrl, {
+            responseType: "arraybuffer"
+        });
+
+        const imageBuffer = Buffer.from(imageResponse.data);
+
+        // Step 2: Build the multipart form for Monday's file upload
+        const form = new FormData();
+
+        const mutation = `
+            mutation ($updateId: ID!, $file: File!) {
+                add_file_to_update (update_id: $updateId, file: $file) {
+                    id
+                }
+            }
+        `;
+
+        form.append("query", mutation);
+        form.append("variables", JSON.stringify({ updateId: String(updateId) }));
+        form.append("map", JSON.stringify({ image: ["variables.file"] }));
+        form.append("image", imageBuffer, { filename: fileName || "image.jpg" });
+
+        // Step 3: Send it to Monday's API (multipart, not JSON)
+        const response = await axios.post(
+            "https://api.monday.com/v2/file",
+            form,
+            {
+                headers: {
+                    ...form.getHeaders(),
+                    Authorization: process.env.MONDAY_TOKEN
+                }
+            }
+        );
+
+        console.log("====== FILE UPLOAD RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        return response.data.data.add_file_to_update;
+
+    } catch (error) {
+
+        console.log("====== FILE UPLOAD ERROR ======");
+
+        if (error.response) {
+            console.log(JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.log(error.message);
+        }
+
+        throw error;
+
+    }
+
+}
 module.exports = {
     searchByPhone,
     createItem,
     updateItem,
     createUpdate,
-    createTimelineItem
+    createTimelineItem,
+    addFileToUpdateFromUrl
 };
