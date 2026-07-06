@@ -7,8 +7,6 @@ const {
     addFileToUpdateFromUrl
 } = require("../services/mondayService");
 
-const { getRecentAttachment } = require("../services/salesMessageService");
-
 exports.contactWebhook = async (req, res) => {
 
     try {
@@ -63,22 +61,11 @@ exports.contactWebhook = async (req, res) => {
             console.log("Items:", items);
 
             if (items.length === 0) {
-
                 console.log("No matching Monday item found.");
-
-                return res.status(200).json({
-                    success: true
-                });
-
+                return res.status(200).json({ success: true });
             }
 
             const itemId = items[0].id;
-
-            const messageDate = new Date(
-                data.message?.sent_at || data.message?.received_at || new Date()
-            );
-
-            let update = "";
 
             const senderName =
                 event === "message.sent"
@@ -105,7 +92,7 @@ exports.contactWebhook = async (req, res) => {
                     ? "OUTGOING SMS"
                     : "INCOMING SMS";
 
-            update = `
+            const update = `
 ${direction}
 
 ${data.message.body}
@@ -120,49 +107,42 @@ ${receiverPhone}
 `;
 
             console.log("Creating update for item:", itemId);
-        // TEMPORARY: inspect full message details to find the media field
-if (data.message?.type === "mms") {
-    await getRecentAttachment();
-}
             console.log(update);
 
-            const title = event === "message.sent"
-                ? "Outgoing SMS"
-                : "Incoming SMS";
+            // If this was an MMS, attach the image to the same update
+            if (data.message?.type === "mms") {
 
-            // Using createUpdate (simple Updates tab post) instead of createTimelineItem
-            // createTimelineItem requires a custom_activity_id we're skipping for now
-           // If this was an MMS, attach the image to the same update
-if (data.message?.type === "mms") {
+                const attachment = await getRecentAttachment();
 
-    const attachment = await getRecentAttachment();
+                const updateResult = await createUpdate(
+                    itemId,
+                    update.replace(/\n/g, "<br>")
+                );
 
-    if (attachment) {
-        const updateResult = await createUpdate(
-            itemId,
-            update.replace(/\n/g, "<br>")
-        );
+                if (attachment) {
+                    await addFileToUpdateFromUrl(
+                        updateResult.id,
+                        attachment.url,
+                        attachment.name
+                    );
 
-        await addFileToUpdateFromUrl(
-            updateResult.id,
-            attachment.url,
-            attachment.name
-        );
+                    console.log("✅ Image attached to Monday update.");
+                }
 
-        console.log("✅ Image attached to Monday update.");
-    }
+            } else {
+                await createUpdate(
+                    itemId,
+                    update.replace(/\n/g, "<br>")
+                );
+            }
 
-} else {
-    await createUpdate(
-        itemId,
-        update.replace(/\n/g, "<br>")
-    );
-}
+            console.log("✅ Monday update created.");
+
+            return res.status(200).json({ success: true });
+        }
 
         // Ignore unsupported events
-        return res.status(200).json({
-            success: true
-        });
+        return res.status(200).json({ success: true });
 
     } catch (err) {
 

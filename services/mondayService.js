@@ -1,6 +1,6 @@
+const monday = require("../config/monday");
 const axios = require("axios");
 const FormData = require("form-data");
-const monday = require("../config/monday");
 
 const BOARD_ID = process.env.BOARD_ID;
 const PHONE_COLUMN = process.env.PHONE_COLUMN;
@@ -175,7 +175,7 @@ async function createTimelineItem(itemId, title, message) {
         itemId: String(itemId),
         title: title,
         content: message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString().split('.')[0] + 'Z'
     };
 
     try {
@@ -200,7 +200,6 @@ async function createTimelineItem(itemId, title, message) {
         if (error.response) {
             console.log(JSON.stringify(error.response.data, null, 2));
         } else {
-            console.log("REAL ERROR MESSAGE >>>", error.response?.data?.errors?.[0]?.message);
             console.log(error.message);
         }
 
@@ -270,6 +269,7 @@ async function addFileToUpdateFromUrl(updateId, imageUrl, fileName) {
     }
 
 }
+
 module.exports = {
     searchByPhone,
     createItem,

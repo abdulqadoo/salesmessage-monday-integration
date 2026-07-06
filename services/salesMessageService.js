@@ -21,7 +21,22 @@ async function getRecentAttachment() {
         console.log("====== SALESMESSAGE RECENT ATTACHMENTS ======");
         console.log(JSON.stringify(response.data, null, 2));
 
-        return response.data;
+        const attachments = response.data;
+
+        if (!attachments || attachments.length === 0) {
+            console.log("No attachments found.");
+            return null;
+        }
+
+        // List comes back most-recent-first
+        const latest = attachments[0];
+
+        return {
+            id: latest.id,
+            url: latest.source,
+            name: latest.name,
+            contentType: latest.content_type
+        };
 
     } catch (error) {
 
