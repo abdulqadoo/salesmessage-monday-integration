@@ -1,3 +1,4 @@
+const TASK_BOARD_ID = process.env.TASK_BOARD_ID;
 const { searchItemByName, connectItems } = require("../services/mondayService");
 
 const RELATIONSHIP_BOARD_ID = process.env.RELATIONSHIP_BOARD_ID;
@@ -37,7 +38,12 @@ exports.taskWebhook = async (req, res) => {
 
         const subitemId = matches[0].id;
 
-        await connectItems(taskItemId, CONNECT_COLUMN_ID, subitemId);
+        await connectItems(
+    RELATIONSHIP_BOARD_ID,
+    taskItemId,
+    CONNECT_COLUMN_ID,
+    subitemId
+);
 
         console.log(`✅ Connected task ${taskItemId} to subitem ${subitemId}`);
 

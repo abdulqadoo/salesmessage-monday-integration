@@ -310,11 +310,20 @@ async function searchItemByName(boardId, name) {
 // =====================================
 // CONNECT TWO ITEMS VIA CONNECT BOARDS COLUMN
 // =====================================
-async function connectItems(itemId, connectColumnId, targetItemId) {
+// =====================================
+// CONNECT TWO ITEMS VIA CONNECT BOARDS COLUMN
+// =====================================
+async function connectItems(boardId, itemId, connectColumnId, targetItemId) {
 
     const mutation = `
-        mutation ($itemId: ID!, $columnId: String!, $value: JSON!) {
-            change_column_value (
+        mutation (
+            $boardId: ID!,
+            $itemId: ID!,
+            $columnId: String!,
+            $value: JSON!
+        ) {
+            change_column_value(
+                board_id: $boardId,
                 item_id: $itemId,
                 column_id: $columnId,
                 value: $value
@@ -325,22 +334,35 @@ async function connectItems(itemId, connectColumnId, targetItemId) {
     `;
 
     const variables = {
+        boardId: String(boardId),
         itemId: String(itemId),
         columnId: connectColumnId,
-        value: JSON.stringify({ item_ids: [String(targetItemId)] })
+        value: JSON.stringify({
+            item_ids: [String(targetItemId)]
+        })
     };
 
     try {
 
-        const response = await monday.post("", { query: mutation, variables });
+        const response = await monday.post("", {
+            query: mutation,
+            variables
+        });
 
-        console.log("Connect Response:", JSON.stringify(response.data, null, 2));
+        console.log("====== CONNECT RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        if (response.data.errors) {
+            throw new Error(JSON.stringify(response.data.errors));
+        }
 
         return response.data.data.change_column_value;
 
     } catch (error) {
 
-        console.log("Connect Error:", error.response?.data || error.message);
+        console.log("====== CONNECT ERROR ======");
+        console.log(error.response?.data || error.message);
+
         throw error;
 
     }
