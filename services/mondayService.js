@@ -269,6 +269,83 @@ async function addFileToUpdateFromUrl(updateId, imageUrl, fileName) {
     }
 
 }
+// =====================================
+// SEARCH ITEM BY NAME (any board)
+// =====================================
+async function searchItemByName(boardId, name) {
+
+    const query = `
+        query {
+            items_page_by_column_values(
+                board_id: ${boardId},
+                columns: [{
+                    column_id: "name",
+                    column_values: ["${name}"]
+                }]
+            ) {
+                items {
+                    id
+                    name
+                }
+            }
+        }
+    `;
+
+    try {
+
+        const response = await monday.post("", { query });
+
+        return response.data.data.items_page_by_column_values.items;
+
+    } catch (error) {
+
+        console.log(error.response?.data || error.message);
+
+        return [];
+
+    }
+
+}
+
+// =====================================
+// CONNECT TWO ITEMS VIA CONNECT BOARDS COLUMN
+// =====================================
+async function connectItems(itemId, connectColumnId, targetItemId) {
+
+    const mutation = `
+        mutation ($itemId: ID!, $columnId: String!, $value: JSON!) {
+            change_column_value (
+                item_id: $itemId,
+                column_id: $columnId,
+                value: $value
+            ) {
+                id
+            }
+        }
+    `;
+
+    const variables = {
+        itemId: String(itemId),
+        columnId: connectColumnId,
+        value: JSON.stringify({ item_ids: [String(targetItemId)] })
+    };
+
+    try {
+
+        const response = await monday.post("", { query: mutation, variables });
+
+        console.log("Connect Response:", JSON.stringify(response.data, null, 2));
+
+        return response.data.data.change_column_value;
+
+    } catch (error) {
+
+        console.log("Connect Error:", error.response?.data || error.message);
+        throw error;
+
+    }
+
+}
 
 module.exports = {
     searchByPhone,
@@ -276,5 +353,7 @@ module.exports = {
     updateItem,
     createUpdate,
     createTimelineItem,
-    addFileToUpdateFromUrl
+    addFileToUpdateFromUrl,
+    searchItemByName,
+    connectItems
 };
