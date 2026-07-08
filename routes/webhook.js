@@ -5,7 +5,14 @@ const {
     contactWebhook
 } = require("../controllers/webhookController");
 
-// Handle all webhook events
+const {
+    relationshipWebhook
+} = require("../controllers/relationshipWebhookController");
+
+// SalesMessage webhook
 router.post("/", contactWebhook);
+
+// Relationship Board webhook
+router.post("/relationship", relationshipWebhook);
 
 module.exports = router;
