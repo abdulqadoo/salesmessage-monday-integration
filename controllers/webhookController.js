@@ -107,6 +107,18 @@ ${receiverName}
 ${receiverPhone}
 `;
 
+const timelineUpdate = `
+${data.message.body}
+
+From:
+${senderName}
+${senderPhone}
+
+To:
+${receiverName}
+${receiverPhone}
+`;
+
             console.log("Creating update for item:", itemId);
             console.log(update);
 
@@ -143,7 +155,7 @@ ${receiverPhone}
             await createSmsTimelineItem(
     itemId,
     direction === "OUTGOING SMS" ? "Outgoing SMS" : "Incoming SMS",
-    update.replace(/\n/g, "<br>")
+    timelineUpdate.replace(/\n/g, "<br>")
 );
             console.log("✅ SMS logged to Emails & Activities.");
 
