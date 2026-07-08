@@ -449,6 +449,61 @@ async function getItem(itemId) {
     }
 
 }
+// =====================================
+// CREATE SMS TIMELINE ENTRY (Emails & Activities)
+// =====================================
+async function createSmsTimelineItem(itemId, content) {
+
+    const CUSTOM_ACTIVITY_ID = "cf290fab-7393-4ab4-9af2-37e1e45e9e5b";
+
+    const mutation = `
+        mutation CreateTimelineItem($itemId: ID!, $content: String!, $timestamp: ISO8601DateTime!, $customActivityId: String!) {
+            create_timeline_item(
+                item_id: $itemId,
+                content: $content,
+                timestamp: $timestamp,
+                custom_activity_id: $customActivityId
+            ) {
+                id
+            }
+        }
+    `;
+
+    const variables = {
+        itemId: String(itemId),
+        content: content,
+        timestamp: new Date().toISOString().split('.')[0] + 'Z',
+        customActivityId: CUSTOM_ACTIVITY_ID
+    };
+
+    try {
+
+        console.log("====== SMS TIMELINE VARIABLES ======");
+        console.log(JSON.stringify(variables, null, 2));
+
+        const response = await monday.post("", {
+            query: mutation,
+            variables
+        });
+
+        console.log("====== SMS TIMELINE RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        return response.data.data.create_timeline_item;
+
+    } catch (error) {
+
+        console.log("====== SMS TIMELINE ERROR ======");
+
+        if (error.response) {
+            console.log(JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.log(error.message);
+        }
+
+        throw error;
+    }
+}
 
 module.exports = {
     searchByPhone,
@@ -460,5 +515,6 @@ module.exports = {
     searchItemByName,
     createTask,
     connectItems,
-    getItem
+    getItem,
+    createSmsTimelineItem
 };

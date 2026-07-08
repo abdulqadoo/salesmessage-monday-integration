@@ -4,7 +4,8 @@ const {
     createItem,
     createUpdate,
     createTimelineItem,
-    addFileToUpdateFromUrl
+    addFileToUpdateFromUrl,
+    createSmsTimelineItem
 } = require("../services/mondayService");
 
 exports.contactWebhook = async (req, res) => {
@@ -137,6 +138,14 @@ ${receiverPhone}
             }
 
             console.log("✅ Monday update created.");
+
+            // Also log this into Emails & Activities
+            await createSmsTimelineItem(
+                itemId,
+                update.replace(/\n/g, "<br>")
+            );
+
+            console.log("✅ SMS logged to Emails & Activities.");
 
             return res.status(200).json({ success: true });
         }
