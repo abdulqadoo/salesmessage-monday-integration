@@ -1,3 +1,13 @@
+const processedMessages = new Set();
+const eventType = req.body.event;
+
+if (
+    eventType &&
+    eventType !== "message.created"
+) {
+    console.log("Ignoring event:", eventType);
+    return res.status(200).send("Ignored");
+}
 const { getRecentAttachment } = require("../services/salesMessageService");
 const {
     searchByPhone,
@@ -17,6 +27,17 @@ exports.contactWebhook = async (req, res) => {
 
         const event = req.body.event;
         const data = req.body.data;
+const messageId = req.body.id || req.body.message?.id;
+
+if (messageId) {
+    if (processedMessages.has(messageId)) {
+        console.log("Duplicate webhook ignored:", messageId);
+        return res.status(200).send("Duplicate ignored");
+    }
+
+    processedMessages.add(messageId);
+}
+
 
         // ===============================
         // CONTACT CREATED / UPDATED
