@@ -141,10 +141,10 @@ ${receiverPhone}
 
             // Also log this into Emails & Activities
             await createSmsTimelineItem(
-                itemId,
-                update.replace(/\n/g, "<br>")
-            );
-
+    itemId,
+    direction === "OUTGOING SMS" ? "Outgoing SMS" : "Incoming SMS",
+    update.replace(/\n/g, "<br>")
+);
             console.log("✅ SMS logged to Emails & Activities.");
 
             return res.status(200).json({ success: true });

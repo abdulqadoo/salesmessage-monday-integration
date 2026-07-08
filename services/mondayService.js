@@ -450,16 +450,18 @@ async function getItem(itemId) {
 
 }
 // =====================================
+// =====================================
 // CREATE SMS TIMELINE ENTRY (Emails & Activities)
 // =====================================
-async function createSmsTimelineItem(itemId, content) {
+async function createSmsTimelineItem(itemId, title, content) {
 
     const CUSTOM_ACTIVITY_ID = "cf290fab-7393-4ab4-9af2-37e1e45e9e5b";
 
     const mutation = `
-        mutation CreateTimelineItem($itemId: ID!, $content: String!, $timestamp: ISO8601DateTime!, $customActivityId: String!) {
+        mutation CreateTimelineItem($itemId: ID!, $title: String!, $content: String!, $timestamp: ISO8601DateTime!, $customActivityId: String!) {
             create_timeline_item(
                 item_id: $itemId,
+                title: $title,
                 content: $content,
                 timestamp: $timestamp,
                 custom_activity_id: $customActivityId
@@ -471,6 +473,7 @@ async function createSmsTimelineItem(itemId, content) {
 
     const variables = {
         itemId: String(itemId),
+        title: title,
         content: content,
         timestamp: new Date().toISOString().split('.')[0] + 'Z',
         customActivityId: CUSTOM_ACTIVITY_ID
