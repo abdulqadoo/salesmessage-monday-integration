@@ -308,9 +308,57 @@ async function searchItemByName(boardId, name) {
 }
 
 // =====================================
-// CONNECT TWO ITEMS VIA CONNECT BOARDS COLUMN
+// CREATE TASK
 // =====================================
-// =====================================
+async function createTask(boardId, taskName) {
+
+    const mutation = `
+        mutation (
+            $boardId: ID!,
+            $itemName: String!
+        ) {
+            create_item(
+                board_id: $boardId,
+                item_name: $itemName
+            ) {
+                id
+                name
+            }
+        }
+    `;
+
+    const variables = {
+        boardId: String(boardId),
+        itemName: taskName
+    };
+
+    try {
+
+        const response = await monday.post("", {
+            query: mutation,
+            variables
+        });
+
+        console.log("====== CREATE TASK ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        if (response.data.errors) {
+            throw new Error(JSON.stringify(response.data.errors));
+        }
+
+        return response.data.data.create_item;
+
+    } catch (error) {
+
+        console.log("====== CREATE TASK ERROR ======");
+        console.log(error.response?.data || error.message);
+
+        throw error;
+
+    }
+
+}
+
 // CONNECT TWO ITEMS VIA CONNECT BOARDS COLUMN
 // =====================================
 async function connectItems(boardId, itemId, connectColumnId, targetItemId) {
@@ -368,6 +416,39 @@ async function connectItems(boardId, itemId, connectColumnId, targetItemId) {
     }
 
 }
+// =====================================
+// GET ITEM DETAILS
+// =====================================
+async function getItem(itemId) {
+
+    const query = `
+        query {
+            items(ids: [${itemId}]) {
+                id
+                name
+                column_values {
+                    id
+                    text
+                    value
+                }
+            }
+        }
+    `;
+
+    try {
+
+        const response = await monday.post("", { query });
+
+        return response.data.data.items[0];
+
+    } catch (error) {
+
+        console.log(error.response?.data || error.message);
+        return null;
+
+    }
+
+}
 
 module.exports = {
     searchByPhone,
@@ -377,5 +458,7 @@ module.exports = {
     createTimelineItem,
     addFileToUpdateFromUrl,
     searchItemByName,
-    connectItems
+    createTask,
+    connectItems,
+    getItem
 };
