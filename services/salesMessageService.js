@@ -2,15 +2,19 @@ const axios = require("axios");
 
 const SALESMESSAGE_API_TOKEN = process.env.SALESMESSAGE_API_TOKEN;
 
-// =====================================
-// GET MOST RECENT ATTACHMENT (e.g. MMS image)
-// =====================================
+async function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function getRecentAttachment() {
+
+    // Give SalesMessage time to finish uploading the file
+    await sleep(3000);
 
     try {
 
         const response = await axios.get(
-            `https://api.salesmessage.com/pub/v2.3/attachments/recently`,
+            "https://api.salesmessage.com/pub/v2.3/attachments/recently",
             {
                 headers: {
                     Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
@@ -18,40 +22,38 @@ async function getRecentAttachment() {
             }
         );
 
-        console.log("====== SALESMESSAGE RECENT ATTACHMENTS ======");
-        console.log(JSON.stringify(response.data, null, 2));
+        const attachments = response.data || [];
 
-        const attachments = response.data;
-
-        if (!attachments || attachments.length === 0) {
-            console.log("No attachments found.");
+        if (!attachments.length) {
             return null;
         }
 
-        // List comes back most-recent-first
-        const latest = attachments[0];
+        // Only completed image attachments
+        const image = attachments.find(a =>
+            a.type === "image" &&
+            a.processing === 0 &&
+            a.source &&
+            a.is_allowed_for_media_url === true
+        );
 
-        return {
-            id: latest.id,
-            url: latest.source,
-            name: latest.name,
-            contentType: latest.content_type
-        };
-
-    } catch (error) {
-
-        console.log("====== SALESMESSAGE FETCH ERROR ======");
-
-        if (error.response) {
-            console.log(JSON.stringify(error.response.data, null, 2));
-        } else {
-            console.log(error.message);
+        if (!image) {
+            return null;
         }
 
+        return {
+            id: image.id,
+            url: image.source,
+            name: image.name,
+            contentType: image.content_type
+        };
+
+    } catch (err) {
+
+        console.log("Attachment Error:");
+        console.log(err.response?.data || err.message);
+
         return null;
-
     }
-
 }
 
 module.exports = {

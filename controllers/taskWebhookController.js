@@ -39,10 +39,10 @@ exports.taskWebhook = async (req, res) => {
         const subitemId = matches[0].id;
 
         await connectItems(
-    RELATIONSHIP_BOARD_ID,
-    taskItemId,
-    CONNECT_COLUMN_ID,
-    subitemId
+               RELATIONSHIP_BOARD_ID,
+               taskItemId,
+               CONNECT_COLUMN_ID,
+               subitemId
 );
 
         console.log(`✅ Connected task ${taskItemId} to subitem ${subitemId}`);

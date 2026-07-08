@@ -123,7 +123,10 @@ ${receiverPhone}
             console.log(update);
 
             // If this was an MMS, attach the image to the same update
-            if (data.message?.type === "mms") {
+            if (
+    data.message?.type === "mms" &&
+    data.message?.mms_status === "done"
+) {
 
                 const attachment = await getRecentAttachment();
 
