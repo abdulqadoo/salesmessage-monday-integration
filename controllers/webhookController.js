@@ -122,35 +122,43 @@ ${receiverPhone}
             console.log("Creating update for item:", itemId);
             console.log(update);
 
-            // If this was an MMS, attach the image to the same update
-            if (
-    data.message?.type === "mms" &&
-    data.message?.mms_status === "done"
-) {
+   // If this was an MMS, attach the image to the same update
+if (data.message?.type === "mms") {
 
-                const attachment = await getRecentAttachment();
+    // Wait for SalesMessage to finish uploading the image
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
-                const updateResult = await createUpdate(
-                    itemId,
-                    update.replace(/\n/g, "<br>")
-                );
+    const attachment = await getRecentAttachment();
 
-                if (attachment) {
-                    await addFileToUpdateFromUrl(
-                        updateResult.id,
-                        attachment.url,
-                        attachment.name
-                    );
+    const updateResult = await createUpdate(
+        itemId,
+        update.replace(/\n/g, "<br>")
+    );
 
-                    console.log("✅ Image attached to Monday update.");
-                }
+    if (attachment) {
 
-            } else {
-                await createUpdate(
-                    itemId,
-                    update.replace(/\n/g, "<br>")
-                );
-            }
+        await addFileToUpdateFromUrl(
+            updateResult.id,
+            attachment.url,
+            attachment.name
+        );
+
+        console.log("✅ Image attached to Monday update.");
+
+    } else {
+
+        console.log("❌ No attachment found.");
+
+    }
+
+} else {
+
+    await createUpdate(
+        itemId,
+        update.replace(/\n/g, "<br>")
+    );
+
+}
 
             console.log("✅ Monday update created.");
 
