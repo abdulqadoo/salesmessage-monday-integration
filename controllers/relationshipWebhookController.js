@@ -65,7 +65,14 @@ exports.relationshipWebhook = async (req, res) => {
         );
 
         console.log("✅ Task connected to Relationship item.");
+await connectItems(
+    event.boardId,
+    subitemId,
+    process.env.SUBITEM_CONNECT_COLUMN,
+    task.id
+);
 
+console.log("✅ Subitem connected to Task.");
         return res.status(200).json({
             success: true
         });
