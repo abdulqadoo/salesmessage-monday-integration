@@ -8,80 +8,38 @@ function sleep(ms) {
 }
 
 
-/**
- * Fetches the message record directly from its conversation.
- * This is scoped to the exact conversation + message id, unlike
- * /attachments/recently which returns an account-wide list with
- * no message_id field to correlate against.
- */
-async function fetchMessageFromConversation(conversationId, messageId) {
+async function fetchRecentAttachments() {
 
-    const candidateUrls = [
-        `https://api.salesmessage.com/pub/v2.2/conversations/${conversationId}/messages`,
-        `https://api.salesmessage.com/pub/v2.3/conversations/${conversationId}/messages`,
-        `https://api.salesmessage.com/pub/v2.2/conversations/${conversationId}`,
-        `https://api.salesmessage.com/pub/v2.3/conversations/${conversationId}`
-    ];
-
-    for (const url of candidateUrls) {
-
-        try {
-
-            const response = await axios.get(url, {
-                headers: {
-                    Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
-                }
-            });
-
-            console.log(`✅ Endpoint worked: ${url}`);
-
-            const body = response.data?.data || response.data;
-
-            // Could be an array of messages, or a single conversation
-            // object with a nested messages array — handle both.
-            const messages = Array.isArray(body)
-                ? body
-                : (body?.messages || [body]);
-
-            const match = messages.find(m =>
-                String(m.id) === String(messageId)
-            );
-
-            if (match) {
-                return { messages, match, workingUrl: url };
+    const response = await axios.get(
+        "https://api.salesmessage.com/pub/v2.3/attachments/recently",
+        {
+            headers: {
+                Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
             }
-
-            console.log(`Endpoint ${url} responded but message ${messageId} not found in it yet.`);
-
-        } catch (err) {
-
-            console.log(
-                `Endpoint failed (${url}):`,
-                err.response?.status,
-                err.response?.data?.message || err.message
-            );
-
         }
+    );
 
-    }
-
-    return { messages: [], match: null };
+    return response.data || [];
 }
 
 
 /**
- * Looks up the attachment for a specific message by fetching that
- * exact message from its conversation and reading its own attachment
- * data, instead of guessing from an unrelated "recently uploaded" list.
+ * Grabs the most recently uploaded image attachment.
+ *
+ * IMPORTANT: Salesmsg's /attachments/recently endpoint does NOT include
+ * a message_id field (confirmed from live payloads), so there is no way
+ * to filter this list down to "the attachment for exactly this message."
+ * The most reliable available signal is recency: this endpoint returns
+ * items newest-first, so we take the top valid image.
+ *
+ * This restores the previously-working behavior. Known limitation:
+ * if two image messages (in either direction) are sent within the same
+ * short window, this can still pick up the wrong one, since the API
+ * gives us no per-message correlation. If that happens, it needs to be
+ * reported to Salesmsg support as an API gap — not something fixable
+ * purely in our code.
  */
 async function getRecentAttachment(messageId, options = {}) {
-
-    const conversationId = options.conversationId;
-
-    if (!conversationId) {
-        console.log("getRecentAttachment called without conversationId — cannot look up message-scoped attachment.");
-        return null;
-    }
 
     const maxAttempts = options.maxAttempts || 5;
     const delayMs = options.delayMs || 3000;
@@ -93,43 +51,40 @@ async function getRecentAttachment(messageId, options = {}) {
 
         try {
 
-            const { messages, match } = await fetchMessageFromConversation(conversationId, messageId);
+            const attachments = await fetchRecentAttachments();
 
-            if (!match) {
-                console.log(
-                    `[Attempt ${attempt}/${maxAttempts}] Message ${messageId} not found yet in conversation ${conversationId}.`
-                );
+            if (!attachments.length) {
+                console.log(`[Attempt ${attempt}/${maxAttempts}] No attachments returned yet`);
                 continue;
             }
 
-            // Log the full matched message once so we can see exactly
-            // where the attachment data lives on it (field name may be
-            // "attachments", "media", "files", etc — adjust below once seen).
-            console.log(
-                `[Attempt ${attempt}/${maxAttempts}] Found message record:`,
-                JSON.stringify(match, null, 2)
+            const validImages = attachments.filter(a =>
+                a.type === "image" &&
+                a.processing === 0 &&
+                a.is_allowed_for_media_url === true
             );
 
-            const attachment =
-                match.attachments?.[0] ||
-                match.media?.[0] ||
-                match.files?.[0] ||
-                null;
-
-            if (!attachment) {
-                console.log(
-                    `[Attempt ${attempt}/${maxAttempts}] Message found but no attachment field populated yet.`
-                );
+            if (validImages.length === 0) {
+                console.log(`[Attempt ${attempt}/${maxAttempts}] No ready image attachments yet`);
                 continue;
             }
 
+            // Newest first (list order) — take the top one.
+            const image = validImages[0];
+
+            console.log(
+                `[Attempt ${attempt}/${maxAttempts}] Using most recent ready image:`,
+                image.name,
+                image.id
+            );
+
             return {
-                id: attachment.id,
-                url: attachment.source || attachment.url,
-                name: attachment.name,
-                contentType: attachment.content_type,
-                messageId: messageId
+                id: image.id,
+                url: image.source,
+                name: image.name,
+                contentType: image.content_type
             };
+
 
         } catch (err) {
 
@@ -144,7 +99,7 @@ async function getRecentAttachment(messageId, options = {}) {
 
 
     console.log(
-        "No matching attachment found after all retries for message:",
+        "No attachment found after all retries for message:",
         messageId
     );
 

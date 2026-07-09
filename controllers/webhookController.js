@@ -293,8 +293,7 @@ ${receiverPhone}
 
 
                 const attachment = await getRecentAttachment(
-                    data.message.id,
-                    { conversationId: data.message.conversation_id }
+                    data.message.id
                 );
 
 
