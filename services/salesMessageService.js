@@ -8,10 +8,16 @@ function sleep(ms) {
 }
 
 
-async function fetchRecentAttachments() {
+/**
+ * Fetches the message record directly from its conversation.
+ * This is scoped to the exact conversation + message id, unlike
+ * /attachments/recently which returns an account-wide list with
+ * no message_id field to correlate against.
+ */
+async function fetchMessageFromConversation(conversationId, messageId) {
 
     const response = await axios.get(
-        "https://api.salesmessage.com/pub/v2.3/attachments/recently",
+        `https://api.salesmessage.com/pub/v2.3/conversations/${conversationId}/messages`,
         {
             headers: {
                 Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
@@ -19,19 +25,29 @@ async function fetchRecentAttachments() {
         }
     );
 
-    return response.data || [];
+    const messages = response.data?.data || response.data || [];
+
+    const match = messages.find(m =>
+        String(m.id) === String(messageId)
+    );
+
+    return { messages, match };
 }
 
 
 /**
- * Looks up the attachment for a specific message.
- * Retries several times (instead of one fixed wait) since
- * Salesmsg may still be processing the image.
- * Also flags any case where more than one attachment matches
- * the same message_id, since that would explain wrong/previous
- * images being picked up.
+ * Looks up the attachment for a specific message by fetching that
+ * exact message from its conversation and reading its own attachment
+ * data, instead of guessing from an unrelated "recently uploaded" list.
  */
 async function getRecentAttachment(messageId, options = {}) {
+
+    const conversationId = options.conversationId;
+
+    if (!conversationId) {
+        console.log("getRecentAttachment called without conversationId — cannot look up message-scoped attachment.");
+        return null;
+    }
 
     const maxAttempts = options.maxAttempts || 5;
     const delayMs = options.delayMs || 3000;
@@ -43,75 +59,43 @@ async function getRecentAttachment(messageId, options = {}) {
 
         try {
 
-            const attachments = await fetchRecentAttachments();
+            const { messages, match } = await fetchMessageFromConversation(conversationId, messageId);
 
-            if (!attachments.length) {
-                console.log(`[Attempt ${attempt}/${maxAttempts}] No attachments returned yet`);
+            if (!match) {
+                console.log(
+                    `[Attempt ${attempt}/${maxAttempts}] Message ${messageId} not found yet in conversation ${conversationId}.`
+                );
                 continue;
             }
 
-
-            const matches = attachments.filter(a =>
-                String(a.message_id) === String(messageId) &&
-                a.type === "image" &&
-                a.processing === 0 &&
-                a.is_allowed_for_media_url === true
+            // Log the full matched message once so we can see exactly
+            // where the attachment data lives on it (field name may be
+            // "attachments", "media", "files", etc — adjust below once seen).
+            console.log(
+                `[Attempt ${attempt}/${maxAttempts}] Found message record:`,
+                JSON.stringify(match, null, 2)
             );
 
+            const attachment =
+                match.attachments?.[0] ||
+                match.media?.[0] ||
+                match.files?.[0] ||
+                null;
 
-            if (matches.length === 0) {
-
+            if (!attachment) {
                 console.log(
-                    `[Attempt ${attempt}/${maxAttempts}] No matching attachment yet for message:`,
-                    messageId
+                    `[Attempt ${attempt}/${maxAttempts}] Message found but no attachment field populated yet.`
                 );
-
-                // Diagnostic: show the closest candidates (by message_id only,
-                // ignoring the other filters) so we can see WHY they failed
-                // to match — wrong type, still processing, or not allowed yet.
-                const closeButNoMatch = attachments.filter(a =>
-                    String(a.message_id) === String(messageId)
-                );
-
-                if (closeButNoMatch.length > 0) {
-                    console.log(
-                        `[Attempt ${attempt}/${maxAttempts}] Found ${closeButNoMatch.length} attachment(s) with matching message_id, but they failed other filters:`,
-                        JSON.stringify(closeButNoMatch, null, 2)
-                    );
-                } else {
-                    console.log(
-                        `[Attempt ${attempt}/${maxAttempts}] No attachment in the list has message_id ${messageId} at all. Sample of what came back:`,
-                        JSON.stringify(attachments.slice(0, 3), null, 2)
-                    );
-                }
-
                 continue;
             }
 
-
-            if (matches.length > 1) {
-
-                // If this ever logs, it CONFIRMS the collision theory —
-                // multiple attachments are sharing the same message_id.
-                console.log(
-                    "⚠️ COLLISION: multiple attachments matched the same message_id:",
-                    messageId,
-                    JSON.stringify(matches, null, 2)
-                );
-
-            }
-
-
-            const image = matches[0];
-
             return {
-                id: image.id,
-                url: image.source,
-                name: image.name,
-                contentType: image.content_type,
-                messageId: image.message_id
+                id: attachment.id,
+                url: attachment.source || attachment.url,
+                name: attachment.name,
+                contentType: attachment.content_type,
+                messageId: messageId
             };
-
 
         } catch (err) {
 
