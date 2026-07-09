@@ -215,9 +215,24 @@ async function addFileToUpdateFromUrl(updateId, imageUrl, fileName) {
     try {
 
         // Step 1: Download the image into memory
-        const imageResponse = await axios.get(imageUrl, {
-            responseType: "arraybuffer"
-        });
+        let imageResponse;
+
+        try {
+            imageResponse = await axios.get(imageUrl, {
+                responseType: "arraybuffer"
+            });
+        } catch (downloadError) {
+            if (!process.env.SALESMESSAGE_API_TOKEN) {
+                throw downloadError;
+            }
+
+            imageResponse = await axios.get(imageUrl, {
+                responseType: "arraybuffer",
+                headers: {
+                    Authorization: `Bearer ${process.env.SALESMESSAGE_API_TOKEN}`
+                }
+            });
+        }
 
         const imageBuffer = Buffer.from(imageResponse.data);
 

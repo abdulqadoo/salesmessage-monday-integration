@@ -13,6 +13,68 @@ const {
 const processedMessages = new Set();
 
 
+function findImageInPayload(value, seen = new Set()) {
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    if (seen.has(value)) {
+        return null;
+    }
+
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const image = findImageInPayload(item, seen);
+
+            if (image) {
+                return image;
+            }
+        }
+
+        return null;
+    }
+
+    const type = value.type || value.media_type || value.mediaType || "";
+    const contentType = value.content_type || value.contentType || value.mime_type || value.mimeType || "";
+    const url = value.source || value.url || value.media_url || value.mediaUrl || value.download_url || value.downloadUrl;
+    const name = value.name || value.filename || value.file_name || value.fileName || "image.jpg";
+    const looksLikeImage =
+        String(type).toLowerCase().includes("image") ||
+        String(contentType).toLowerCase().startsWith("image/");
+
+    if (url && looksLikeImage) {
+        return {
+            url,
+            name,
+            contentType
+        };
+    }
+
+    for (const key of Object.keys(value)) {
+        const image = findImageInPayload(value[key], seen);
+
+        if (image) {
+            return image;
+        }
+    }
+
+    return null;
+}
+
+
+function messageMayHaveMedia(message, payloadImage) {
+    const type = String(message?.type || "").toLowerCase();
+
+    return Boolean(payloadImage) ||
+        type === "mms" ||
+        type.includes("media") ||
+        type.includes("image") ||
+        Boolean(message?.attachment_count || message?.attachments_count || message?.media_count);
+}
+
+
 exports.contactWebhook = async (req, res) => {
 
     try {
@@ -44,6 +106,25 @@ exports.contactWebhook = async (req, res) => {
             return res.status(200).json({
                 success: true
             });
+        }
+
+
+        if (
+            (event === "message.sent" || event === "message.received") &&
+            data.message?.type === "mms" &&
+            data.message?.mms_status === "busy" &&
+            !findImageInPayload(data.message) &&
+            !findImageInPayload(data)
+        ) {
+
+            console.log(
+                "MMS image is still busy. Waiting for Salesmsg to resend the ready message."
+            );
+
+            return res.status(200).json({
+                success: true
+            });
+
         }
 
 
@@ -268,55 +349,64 @@ ${receiverPhone}
 
 
             // ===============================
-            // MMS IMAGE ATTACHMENT
+            // IMAGE ATTACHMENT
             // ===============================
 
-            // Holds the confirmed image URL for THIS message only.
-            // Stays null unless we get an attachment we can verify
-            // belongs to this exact message.
             let imageUrl = null;
+            const payloadImage =
+                findImageInPayload(data.message) ||
+                findImageInPayload(data);
+            const shouldCheckForImage =
+                messageMayHaveMedia(data.message, payloadImage);
 
 
-            if (data.message?.type === "mms") {
+            if (shouldCheckForImage) {
 
 
                 console.log(
-                    "Waiting for MMS attachment..."
+                    "Checking for image attachment..."
                 );
 
 
-                await new Promise(
-                    resolve =>
-                        setTimeout(resolve, 5000)
-                );
+                let attachment = payloadImage;
 
-console.log("==================================");
-console.log("CURRENT MESSAGE ID:", data.message.id);
-console.log("CURRENT CONVERSATION:", data.message.conversation_id);
-console.log("CURRENT EVENT:", event);
-console.log("==================================");
-
-                const attachment = await getRecentAttachment(
-                    data.message.id
-                );
+                console.log("==================================");
+                console.log("CURRENT MESSAGE ID:", data.message.id);
+                console.log("CURRENT CONVERSATION:", data.message.conversation_id);
+                console.log("CURRENT EVENT:", event);
+                console.log("CURRENT MESSAGE TYPE:", data.message.type);
+                console.log("PAYLOAD IMAGE FOUND:", Boolean(payloadImage));
+                console.log("==================================");
 
 
+                if (!attachment) {
 
-                // Safety check: only trust the attachment if the service
-                // explicitly confirms it matches this message id.
-                // (Requires getRecentAttachment to return a messageId field
-                // — flag this if it currently doesn't, since that's the
-                // real fix for wrong/previous images being picked up.)
-                const attachmentIsVerified =
-                    attachment &&
-                    attachment.url &&
-                    (
-                        attachment.messageId === undefined || // service doesn't expose it yet
-                        attachment.messageId === data.message.id
+                    await new Promise(
+                        resolve =>
+                            setTimeout(resolve, 5000)
                     );
 
 
-                if (attachmentIsVerified) {
+                    attachment = await getRecentAttachment(
+                        data.message.id,
+                        {
+                            conversationId: data.message.conversation_id,
+                            maxAttempts: event === "message.received" ? 12 : 5,
+                            delayMs: event === "message.received" ? 5000 : 3000,
+                            messageCreatedAt:
+                                data.message.received_at ||
+                                data.message.created_at ||
+                                data.message.inserted_at ||
+                                data.message.timestamp,
+                            requireConversationMatch: event === "message.received",
+                            requireTimeMatch: true
+                        }
+                    );
+
+                }
+
+
+                if (attachment && attachment.url) {
 
                     await addFileToUpdateFromUrl(
                         updateResult.id,
@@ -327,16 +417,14 @@ console.log("==================================");
                     imageUrl = attachment.url;
 
                     console.log(
-                        "✅ Image attached"
+                        "Image attached"
                     );
 
                 }
                 else {
 
                     console.log(
-                        attachment
-                            ? "❌ Attachment found but did not match this message — skipped to avoid wrong image"
-                            : "❌ Attachment not found"
+                        "Attachment not found"
                     );
 
                 }
@@ -369,7 +457,7 @@ console.log("==================================");
 
 
             console.log(
-                "✅ Completed"
+                "Completed"
             );
 
 

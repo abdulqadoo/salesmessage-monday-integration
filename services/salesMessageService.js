@@ -8,6 +8,39 @@ function sleep(ms) {
 }
 
 
+function parseTime(value) {
+    if (!value) {
+        return null;
+    }
+
+    const timestamp = Date.parse(value);
+
+    return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+
+function isReadyImageAttachment(attachment) {
+    return attachment &&
+        attachment.type === "image" &&
+        attachment.processing === 0 &&
+        attachment.is_allowed_for_media_url === true &&
+        attachment.source;
+}
+
+
+function normalizeAttachment(attachment) {
+    return {
+        id: attachment.id,
+        url: attachment.source,
+        name: attachment.name,
+        contentType: attachment.content_type,
+        messageId: attachment.message_id,
+        conversationId: attachment.conversation_id,
+        createdAt: attachment.created_at
+    };
+}
+
+
 async function fetchRecentAttachments() {
 
     const response = await axios.get(
@@ -24,25 +57,23 @@ async function fetchRecentAttachments() {
 
 
 /**
- * Grabs the most recently uploaded image attachment.
+ * Gets the best matching recently uploaded Salesmsg image attachment.
  *
- * IMPORTANT: Salesmsg's /attachments/recently endpoint does NOT include
- * a message_id field (confirmed from live payloads), so there is no way
- * to filter this list down to "the attachment for exactly this message."
- * The most reliable available signal is recency: this endpoint returns
- * items newest-first, so we take the top valid image.
- *
- * This restores the previously-working behavior. Known limitation:
- * if two image messages (in either direction) are sent within the same
- * short window, this can still pick up the wrong one, since the API
- * gives us no per-message correlation. If that happens, it needs to be
- * reported to Salesmsg support as an API gap — not something fixable
- * purely in our code.
+ * Some Salesmsg attachment payloads do not include message_id, so we match
+ * by message id when available, then fall back to conversation and recency.
  */
 async function getRecentAttachment(messageId, options = {}) {
 
     const maxAttempts = options.maxAttempts || 5;
     const delayMs = options.delayMs || 3000;
+    const conversationId = options.conversationId;
+    const messageCreatedAt = parseTime(options.messageCreatedAt);
+    const minCreatedAt = parseTime(options.minCreatedAt);
+    const allowedBeforeMs = options.allowedBeforeMs || 15 * 1000;
+    const allowedAfterMs = options.allowedAfterMs || 10 * 60 * 1000;
+    const requireConversationMatch = options.requireConversationMatch !== false;
+    const requireTimeMatch = options.requireTimeMatch !== false;
+    const requireMinCreatedAt = Boolean(minCreatedAt);
 
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -52,51 +83,105 @@ async function getRecentAttachment(messageId, options = {}) {
         try {
 
             const attachments = await fetchRecentAttachments();
-console.log("========== ATTACHMENTS ==========");
 
-attachments.forEach((a) => {
-    console.log({
-        id: a.id,
-        message_id: a.message_id,
-        conversation_id: a.conversation_id,
-        name: a.name,
-        created_at: a.created_at,
-        processing: a.processing
-    });
-});
+            console.log("========== ATTACHMENTS ==========");
 
-console.log("================================");
+            attachments.forEach((a) => {
+                console.log({
+                    id: a.id,
+                    message_id: a.message_id,
+                    conversation_id: a.conversation_id,
+                    name: a.name,
+                    created_at: a.created_at,
+                    processing: a.processing
+                });
+            });
+
+            console.log("================================");
+
             if (!attachments.length) {
                 console.log(`[Attempt ${attempt}/${maxAttempts}] No attachments returned yet`);
                 continue;
             }
 
-            const validImages = attachments.filter(a =>
-                a.type === "image" &&
-                a.processing === 0 &&
-                a.is_allowed_for_media_url === true
-            );
+            let validImages = attachments.filter(isReadyImageAttachment);
 
             if (validImages.length === 0) {
                 console.log(`[Attempt ${attempt}/${maxAttempts}] No ready image attachments yet`);
                 continue;
             }
 
-            // Newest first (list order) — take the top one.
+            const exactMessageImage = validImages.find(a =>
+                a.message_id &&
+                String(a.message_id) === String(messageId)
+            );
+
+            if (exactMessageImage) {
+                console.log(
+                    `[Attempt ${attempt}/${maxAttempts}] Using image matched by message id:`,
+                    exactMessageImage.name,
+                    exactMessageImage.id
+                );
+
+                return normalizeAttachment(exactMessageImage);
+            }
+
+            if (conversationId) {
+                const conversationImages = validImages.filter(a =>
+                    a.conversation_id &&
+                    String(a.conversation_id) === String(conversationId)
+                );
+
+                if (conversationImages.length > 0) {
+                    validImages = conversationImages;
+                } else if (requireConversationMatch) {
+                    console.log(`[Attempt ${attempt}/${maxAttempts}] No image matched this conversation yet`);
+                    continue;
+                }
+            }
+
+            if (messageCreatedAt) {
+                const nearbyImages = validImages.filter(a => {
+                    const attachmentCreatedAt = parseTime(a.created_at);
+
+                    return attachmentCreatedAt &&
+                        attachmentCreatedAt >= messageCreatedAt - allowedBeforeMs &&
+                        attachmentCreatedAt <= messageCreatedAt + allowedAfterMs;
+                });
+
+                if (nearbyImages.length > 0) {
+                    validImages = nearbyImages;
+                } else if (requireTimeMatch) {
+                    console.log(`[Attempt ${attempt}/${maxAttempts}] No image matched this message time yet`);
+                    continue;
+                }
+            }
+
+            if (minCreatedAt) {
+                const newImages = validImages.filter(a => {
+                    const attachmentCreatedAt = parseTime(a.created_at);
+
+                    return attachmentCreatedAt &&
+                        attachmentCreatedAt >= minCreatedAt;
+                });
+
+                if (newImages.length > 0) {
+                    validImages = newImages;
+                } else if (requireMinCreatedAt) {
+                    console.log(`[Attempt ${attempt}/${maxAttempts}] No new image created for this webhook yet`);
+                    continue;
+                }
+            }
+
             const image = validImages[0];
 
             console.log(
-                `[Attempt ${attempt}/${maxAttempts}] Using most recent ready image:`,
+                `[Attempt ${attempt}/${maxAttempts}] Using best matching ready image:`,
                 image.name,
                 image.id
             );
 
-            return {
-                id: image.id,
-                url: image.source,
-                name: image.name,
-                contentType: image.content_type
-            };
+            return normalizeAttachment(image);
 
 
         } catch (err) {
