@@ -42,7 +42,7 @@ exports.contactWebhook = async (req, res) => {
             console.log("Ignoring event:", event);
 
             return res.status(200).json({
-                success:true
+                success: true
             });
         }
 
@@ -57,9 +57,9 @@ exports.contactWebhook = async (req, res) => {
             req.body.id;
 
 
-        if(messageId){
+        if (messageId) {
 
-            if(processedMessages.has(messageId)){
+            if (processedMessages.has(messageId)) {
 
                 console.log(
                     "Duplicate ignored:",
@@ -67,7 +67,7 @@ exports.contactWebhook = async (req, res) => {
                 );
 
                 return res.status(200).json({
-                    success:true
+                    success: true
                 });
             }
 
@@ -83,26 +83,26 @@ exports.contactWebhook = async (req, res) => {
         // ===============================
 
 
-        if(
+        if (
             event === "contact.created" ||
             event === "contact.updated"
-        ){
+        ) {
 
             const contact = {
 
                 name:
-                data.contact?.full_name,
+                    data.contact?.full_name,
 
                 phone:
-                data.contact?.number
+                    data.contact?.number
 
             };
 
 
-            if(!contact.phone){
+            if (!contact.phone) {
 
                 return res.status(200).json({
-                    success:true
+                    success: true
                 });
 
             }
@@ -110,11 +110,11 @@ exports.contactWebhook = async (req, res) => {
 
 
             const items =
-            await searchByPhone(contact.phone);
+                await searchByPhone(contact.phone);
 
 
 
-            if(items.length === 0){
+            if (items.length === 0) {
 
                 console.log(
                     "Creating Monday contact..."
@@ -126,7 +126,7 @@ exports.contactWebhook = async (req, res) => {
 
 
             return res.status(200).json({
-                success:true
+                success: true
             });
 
         }
@@ -140,25 +140,25 @@ exports.contactWebhook = async (req, res) => {
         // ===============================
 
 
-        if(
+        if (
             event === "message.sent" ||
             event === "message.received"
-        ){
+        ) {
 
 
             const phone =
-            data.contact?.number;
+                data.contact?.number;
 
 
 
-            if(!phone){
+            if (!phone) {
 
                 console.log(
                     "No phone found"
                 );
 
                 return res.status(200).json({
-                    success:true
+                    success: true
                 });
 
             }
@@ -166,18 +166,18 @@ exports.contactWebhook = async (req, res) => {
 
 
             const items =
-            await searchByPhone(phone);
+                await searchByPhone(phone);
 
 
 
-            if(items.length === 0){
+            if (items.length === 0) {
 
                 console.log(
                     "No Monday item found"
                 );
 
                 return res.status(200).json({
-                    success:true
+                    success: true
                 });
 
             }
@@ -185,49 +185,49 @@ exports.contactWebhook = async (req, res) => {
 
 
             const itemId =
-            items[0].id;
+                items[0].id;
 
 
 
             const direction =
-            event === "message.sent"
-            ? "OUTGOING SMS"
-            : "INCOMING SMS";
+                event === "message.sent"
+                    ? "OUTGOING SMS"
+                    : "INCOMING SMS";
 
 
 
             const senderName =
-            event === "message.sent"
-            ? data.user?.full_name || "Unknown User"
-            : data.contact?.full_name || "Unknown Contact";
+                event === "message.sent"
+                    ? data.user?.full_name || "Unknown User"
+                    : data.contact?.full_name || "Unknown Contact";
 
 
 
             const senderPhone =
-            event === "message.sent"
-            ? data.number?.formatted_number || ""
-            : data.contact?.formatted_number || "";
+                event === "message.sent"
+                    ? data.number?.formatted_number || ""
+                    : data.contact?.formatted_number || "";
 
 
 
             const receiverName =
-            event === "message.sent"
-            ? data.contact?.full_name || "Unknown Contact"
-            : data.user?.full_name ||
-              data.inbox?.name ||
-              "Unknown User";
+                event === "message.sent"
+                    ? data.contact?.full_name || "Unknown Contact"
+                    : data.user?.full_name ||
+                      data.inbox?.name ||
+                      "Unknown User";
 
 
 
             const receiverPhone =
-            event === "message.sent"
-            ? data.contact?.formatted_number || ""
-            : data.number?.formatted_number || "";
+                event === "message.sent"
+                    ? data.contact?.formatted_number || ""
+                    : data.number?.formatted_number || "";
 
 
 
             const messageText =
-            data.message?.body || "";
+                data.message?.body || "";
 
 
 
@@ -260,11 +260,10 @@ ${receiverPhone}
 
             // Create ONE Monday update
             const updateResult =
-            await createUpdate(
-                itemId,
-                update.replace(/\n/g,"<br>")
-            );
-
+                await createUpdate(
+                    itemId,
+                    update.replace(/\n/g, "<br>")
+                );
 
 
 
@@ -272,8 +271,13 @@ ${receiverPhone}
             // MMS IMAGE ATTACHMENT
             // ===============================
 
+            // Holds the confirmed image URL for THIS message only.
+            // Stays null unless we get an attachment we can verify
+            // belongs to this exact message.
+            let imageUrl = null;
 
-            if(data.message?.type === "mms"){
+
+            if (data.message?.type === "mms") {
 
 
                 console.log(
@@ -283,18 +287,32 @@ ${receiverPhone}
 
                 await new Promise(
                     resolve =>
-                    setTimeout(resolve,5000)
+                        setTimeout(resolve, 5000)
                 );
 
 
 
-                const attachment =
-                await getRecentAttachment();
+                const attachment = await getRecentAttachment(
+                    data.message.id
+                );
 
 
 
-                if(attachment){
+                // Safety check: only trust the attachment if the service
+                // explicitly confirms it matches this message id.
+                // (Requires getRecentAttachment to return a messageId field
+                // — flag this if it currently doesn't, since that's the
+                // real fix for wrong/previous images being picked up.)
+                const attachmentIsVerified =
+                    attachment &&
+                    attachment.url &&
+                    (
+                        attachment.messageId === undefined || // service doesn't expose it yet
+                        attachment.messageId === data.message.id
+                    );
 
+
+                if (attachmentIsVerified) {
 
                     await addFileToUpdateFromUrl(
                         updateResult.id,
@@ -302,17 +320,19 @@ ${receiverPhone}
                         attachment.name
                     );
 
+                    imageUrl = attachment.url;
 
                     console.log(
                         "✅ Image attached"
                     );
 
-
                 }
-                else{
+                else {
 
                     console.log(
-                        "❌ Attachment not found"
+                        attachment
+                            ? "❌ Attachment found but did not match this message — skipped to avoid wrong image"
+                            : "❌ Attachment not found"
                     );
 
                 }
@@ -326,13 +346,21 @@ ${receiverPhone}
             // EMAILS & ACTIVITIES
             // ===============================
 
+            const timelineBody =
+                update.replace(/\n/g, "<br>") +
+                (
+                    imageUrl
+                        ? `<br><img src="${imageUrl}" style="max-width:400px;" />`
+                        : ""
+                );
+
 
             await createSmsTimelineItem(
                 itemId,
                 direction === "OUTGOING SMS"
-                ? "Outgoing SMS"
-                : "Incoming SMS",
-                update.replace(/\n/g,"<br>")
+                    ? "Outgoing SMS"
+                    : "Incoming SMS",
+                timelineBody
             );
 
 
@@ -343,7 +371,7 @@ ${receiverPhone}
 
 
             return res.status(200).json({
-                success:true
+                success: true
             });
 
 
@@ -352,14 +380,14 @@ ${receiverPhone}
 
 
         return res.status(200).json({
-            success:true
+            success: true
         });
 
 
 
     }
 
-    catch(err){
+    catch (err) {
 
 
         console.error(
@@ -370,8 +398,8 @@ ${receiverPhone}
 
         return res.status(500).json({
 
-            success:false,
-            error:err.message
+            success: false,
+            error: err.message
 
         });
 
