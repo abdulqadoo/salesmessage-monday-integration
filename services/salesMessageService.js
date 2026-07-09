@@ -2,59 +2,117 @@ const axios = require("axios");
 
 const SALESMESSAGE_API_TOKEN = process.env.SALESMESSAGE_API_TOKEN;
 
-async function sleep(ms) {
+
+function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function getRecentAttachment() {
 
-    // Give SalesMessage time to finish uploading the file
-    await sleep(3000);
+async function fetchRecentAttachments() {
 
-    try {
-
-        const response = await axios.get(
-            "https://api.salesmessage.com/pub/v2.3/attachments/recently",
-            {
-                headers: {
-                    Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
-                }
+    const response = await axios.get(
+        "https://api.salesmessage.com/pub/v2.3/attachments/recently",
+        {
+            headers: {
+                Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
             }
-        );
-
-        const attachments = response.data || [];
-
-        if (!attachments.length) {
-            return null;
         }
+    );
 
-        // Only completed image attachments
-        const image = attachments.find(a =>
-            a.type === "image" &&
-            a.processing === 0 &&
-            a.source &&
-            a.is_allowed_for_media_url === true
-        );
-
-        if (!image) {
-            return null;
-        }
-
-        return {
-            id: image.id,
-            url: image.source,
-            name: image.name,
-            contentType: image.content_type
-        };
-
-    } catch (err) {
-
-        console.log("Attachment Error:");
-        console.log(err.response?.data || err.message);
-
-        return null;
-    }
+    return response.data || [];
 }
+
+
+/**
+ * Looks up the attachment for a specific message.
+ * Retries several times (instead of one fixed wait) since
+ * Salesmsg may still be processing the image.
+ * Also flags any case where more than one attachment matches
+ * the same message_id, since that would explain wrong/previous
+ * images being picked up.
+ */
+async function getRecentAttachment(messageId, options = {}) {
+
+    const maxAttempts = options.maxAttempts || 5;
+    const delayMs = options.delayMs || 3000;
+
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+
+        await sleep(delayMs);
+
+        try {
+
+            const attachments = await fetchRecentAttachments();
+
+            if (!attachments.length) {
+                console.log(`[Attempt ${attempt}/${maxAttempts}] No attachments returned yet`);
+                continue;
+            }
+
+
+            const matches = attachments.filter(a =>
+                String(a.message_id) === String(messageId) &&
+                a.type === "image" &&
+                a.processing === 0 &&
+                a.is_allowed_for_media_url === true
+            );
+
+
+            if (matches.length === 0) {
+                console.log(
+                    `[Attempt ${attempt}/${maxAttempts}] No matching attachment yet for message:`,
+                    messageId
+                );
+                continue;
+            }
+
+
+            if (matches.length > 1) {
+
+                // If this ever logs, it CONFIRMS the collision theory —
+                // multiple attachments are sharing the same message_id.
+                console.log(
+                    "⚠️ COLLISION: multiple attachments matched the same message_id:",
+                    messageId,
+                    JSON.stringify(matches, null, 2)
+                );
+
+            }
+
+
+            const image = matches[0];
+
+            return {
+                id: image.id,
+                url: image.source,
+                name: image.name,
+                contentType: image.content_type,
+                messageId: image.message_id
+            };
+
+
+        } catch (err) {
+
+            console.log(
+                `[Attempt ${attempt}/${maxAttempts}] Attachment Error:`,
+                err.response?.data || err.message
+            );
+
+        }
+
+    }
+
+
+    console.log(
+        "No matching attachment found after all retries for message:",
+        messageId
+    );
+
+    return null;
+
+}
+
 
 module.exports = {
     getRecentAttachment

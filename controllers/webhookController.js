@@ -277,25 +277,15 @@ ${receiverPhone}
             let imageUrl = null;
 
 
-            if (data.message?.type === "mms") {
+           if(data.message?.type === "mms"){
 
+    console.log(
+        "Waiting for MMS attachment..."
+    );
 
-                console.log(
-                    "Waiting for MMS attachment..."
-                );
-
-
-                await new Promise(
-                    resolve =>
-                        setTimeout(resolve, 5000)
-                );
-
-
-
-                const attachment = await getRecentAttachment(
-                    data.message.id
-                );
-
+    const attachment = await getRecentAttachment(
+        data.message.id
+    );
 
 
                 // Safety check: only trust the attachment if the service
