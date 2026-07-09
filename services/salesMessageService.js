@@ -52,7 +52,20 @@ async function getRecentAttachment(messageId, options = {}) {
         try {
 
             const attachments = await fetchRecentAttachments();
+console.log("========== ATTACHMENTS ==========");
 
+attachments.forEach((a) => {
+    console.log({
+        id: a.id,
+        message_id: a.message_id,
+        conversation_id: a.conversation_id,
+        name: a.name,
+        created_at: a.created_at,
+        processing: a.processing
+    });
+});
+
+console.log("================================");
             if (!attachments.length) {
                 console.log(`[Attempt ${attempt}/${maxAttempts}] No attachments returned yet`);
                 continue;

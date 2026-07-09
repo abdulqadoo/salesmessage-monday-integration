@@ -290,7 +290,11 @@ ${receiverPhone}
                         setTimeout(resolve, 5000)
                 );
 
-
+console.log("==================================");
+console.log("CURRENT MESSAGE ID:", data.message.id);
+console.log("CURRENT CONVERSATION:", data.message.conversation_id);
+console.log("CURRENT EVENT:", event);
+console.log("==================================");
 
                 const attachment = await getRecentAttachment(
                     data.message.id
