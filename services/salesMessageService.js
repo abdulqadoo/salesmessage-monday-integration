@@ -60,10 +60,31 @@ async function getRecentAttachment(messageId, options = {}) {
 
 
             if (matches.length === 0) {
+
                 console.log(
                     `[Attempt ${attempt}/${maxAttempts}] No matching attachment yet for message:`,
                     messageId
                 );
+
+                // Diagnostic: show the closest candidates (by message_id only,
+                // ignoring the other filters) so we can see WHY they failed
+                // to match — wrong type, still processing, or not allowed yet.
+                const closeButNoMatch = attachments.filter(a =>
+                    String(a.message_id) === String(messageId)
+                );
+
+                if (closeButNoMatch.length > 0) {
+                    console.log(
+                        `[Attempt ${attempt}/${maxAttempts}] Found ${closeButNoMatch.length} attachment(s) with matching message_id, but they failed other filters:`,
+                        JSON.stringify(closeButNoMatch, null, 2)
+                    );
+                } else {
+                    console.log(
+                        `[Attempt ${attempt}/${maxAttempts}] No attachment in the list has message_id ${messageId} at all. Sample of what came back:`,
+                        JSON.stringify(attachments.slice(0, 3), null, 2)
+                    );
+                }
+
                 continue;
             }
 
