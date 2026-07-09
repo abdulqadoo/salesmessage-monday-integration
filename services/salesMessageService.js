@@ -16,22 +16,56 @@ function sleep(ms) {
  */
 async function fetchMessageFromConversation(conversationId, messageId) {
 
-    const response = await axios.get(
+    const candidateUrls = [
+        `https://api.salesmessage.com/pub/v2.2/conversations/${conversationId}/messages`,
         `https://api.salesmessage.com/pub/v2.3/conversations/${conversationId}/messages`,
-        {
-            headers: {
-                Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
+        `https://api.salesmessage.com/pub/v2.2/conversations/${conversationId}`,
+        `https://api.salesmessage.com/pub/v2.3/conversations/${conversationId}`
+    ];
+
+    for (const url of candidateUrls) {
+
+        try {
+
+            const response = await axios.get(url, {
+                headers: {
+                    Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
+                }
+            });
+
+            console.log(`✅ Endpoint worked: ${url}`);
+
+            const body = response.data?.data || response.data;
+
+            // Could be an array of messages, or a single conversation
+            // object with a nested messages array — handle both.
+            const messages = Array.isArray(body)
+                ? body
+                : (body?.messages || [body]);
+
+            const match = messages.find(m =>
+                String(m.id) === String(messageId)
+            );
+
+            if (match) {
+                return { messages, match, workingUrl: url };
             }
+
+            console.log(`Endpoint ${url} responded but message ${messageId} not found in it yet.`);
+
+        } catch (err) {
+
+            console.log(
+                `Endpoint failed (${url}):`,
+                err.response?.status,
+                err.response?.data?.message || err.message
+            );
+
         }
-    );
 
-    const messages = response.data?.data || response.data || [];
+    }
 
-    const match = messages.find(m =>
-        String(m.id) === String(messageId)
-    );
-
-    return { messages, match };
+    return { messages: [], match: null };
 }
 
 
