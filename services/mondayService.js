@@ -284,6 +284,60 @@ async function addFileToUpdateFromUrl(updateId, imageUrl, fileName) {
     }
 
 }
+
+// =====================================
+// UPLOAD FILE TO UPDATE (from a Buffer)
+// =====================================
+async function addFileToUpdateFromBuffer(updateId, fileBuffer, fileName) {
+
+    try {
+
+        const form = new FormData();
+
+        const mutation = `
+            mutation ($updateId: ID!, $file: File!) {
+                add_file_to_update (update_id: $updateId, file: $file) {
+                    id
+                }
+            }
+        `;
+
+        form.append("query", mutation);
+        form.append("variables", JSON.stringify({ updateId: String(updateId) }));
+        form.append("map", JSON.stringify({ image: ["variables.file"] }));
+        form.append("image", fileBuffer, { filename: fileName || "image.jpg" });
+
+        const response = await axios.post(
+            "https://api.monday.com/v2/file",
+            form,
+            {
+                headers: {
+                    ...form.getHeaders(),
+                    Authorization: process.env.MONDAY_TOKEN
+                }
+            }
+        );
+
+        console.log("====== FILE BUFFER UPLOAD RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        return response.data.data.add_file_to_update;
+
+    } catch (error) {
+
+        console.log("====== FILE BUFFER UPLOAD ERROR ======");
+
+        if (error.response) {
+            console.log(JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.log(error.message);
+        }
+
+        throw error;
+
+    }
+
+}
 // =====================================
 // SEARCH ITEM BY NAME (any board)
 // =====================================
@@ -530,6 +584,7 @@ module.exports = {
     createUpdate,
     createTimelineItem,
     addFileToUpdateFromUrl,
+    addFileToUpdateFromBuffer,
     searchItemByName,
     createTask,
     connectItems,

@@ -1,11 +1,13 @@
 const { getRecentAttachment } = require("../services/salesMessageService");
+const { waitForIncomingMmsImageFromDrive } = require("../services/driveService");
 
 const {
     searchByPhone,
     createItem,
     createUpdate,
     createSmsTimelineItem,
-    addFileToUpdateFromUrl
+    addFileToUpdateFromUrl,
+    addFileToUpdateFromBuffer
 } = require("../services/mondayService");
 
 
@@ -107,26 +109,6 @@ exports.contactWebhook = async (req, res) => {
                 success: true
             });
         }
-
-
-        if (
-            (event === "message.sent" || event === "message.received") &&
-            data.message?.type === "mms" &&
-            data.message?.mms_status === "busy" &&
-            !findImageInPayload(data.message) &&
-            !findImageInPayload(data)
-        ) {
-
-            console.log(
-                "MMS image is still busy. Waiting for Salesmsg to resend the ready message."
-            );
-
-            return res.status(200).json({
-                success: true
-            });
-
-        }
-
 
 
         // ===============================
@@ -379,53 +361,94 @@ ${receiverPhone}
                 console.log("==================================");
 
 
-                if (!attachment) {
+                if (event === "message.received" && data.message?.type === "mms") {
 
-                    await new Promise(
-                        resolve =>
-                            setTimeout(resolve, 5000)
-                    );
+                    const driveImage = await waitForIncomingMmsImageFromDrive({
+                        phone,
+                        messageId: data.message.id,
+                        conversationId: data.message.conversation_id,
+                        messageTime:
+                            data.message.received_at ||
+                            data.message.created_at ||
+                            data.message.inserted_at ||
+                            data.message.timestamp
+                    });
 
+                    if (driveImage) {
 
-                    attachment = await getRecentAttachment(
-                        data.message.id,
-                        {
-                            conversationId: data.message.conversation_id,
-                            maxAttempts: event === "message.received" ? 12 : 5,
-                            delayMs: event === "message.received" ? 5000 : 3000,
-                            messageCreatedAt:
-                                data.message.received_at ||
-                                data.message.created_at ||
-                                data.message.inserted_at ||
-                                data.message.timestamp,
-                            requireConversationMatch: event === "message.received",
-                            requireTimeMatch: true
-                        }
-                    );
+                        await addFileToUpdateFromBuffer(
+                            updateResult.id,
+                            driveImage.buffer,
+                            driveImage.name
+                        );
 
-                }
+                        imageUrl = driveImage.webViewLink || null;
 
+                        console.log(
+                            "Incoming image attached from Google Drive"
+                        );
 
-                if (attachment && attachment.url) {
+                    }
+                    else {
 
-                    await addFileToUpdateFromUrl(
-                        updateResult.id,
-                        attachment.url,
-                        attachment.name
-                    );
+                        console.log(
+                            "Incoming image not found in Google Drive"
+                        );
 
-                    imageUrl = attachment.url;
-
-                    console.log(
-                        "Image attached"
-                    );
+                    }
 
                 }
                 else {
 
-                    console.log(
-                        "Attachment not found"
-                    );
+                    if (!attachment) {
+
+                        await new Promise(
+                            resolve =>
+                                setTimeout(resolve, 5000)
+                        );
+
+
+                        attachment = await getRecentAttachment(
+                            data.message.id,
+                            {
+                                conversationId: data.message.conversation_id,
+                                maxAttempts: 5,
+                                delayMs: 3000,
+                                messageCreatedAt:
+                                    data.message.sent_at ||
+                                    data.message.created_at ||
+                                    data.message.inserted_at ||
+                                    data.message.timestamp,
+                                requireConversationMatch: false,
+                                requireTimeMatch: true
+                            }
+                        );
+
+                    }
+
+
+                    if (attachment && attachment.url) {
+
+                        await addFileToUpdateFromUrl(
+                            updateResult.id,
+                            attachment.url,
+                            attachment.name
+                        );
+
+                        imageUrl = attachment.url;
+
+                        console.log(
+                            "Outgoing image attached"
+                        );
+
+                    }
+                    else {
+
+                        console.log(
+                            "Attachment not found"
+                        );
+
+                    }
 
                 }
 
@@ -442,7 +465,7 @@ ${receiverPhone}
                 update.replace(/\n/g, "<br>") +
                 (
                     imageUrl
-                        ? `<br><img src="${imageUrl}" style="max-width:400px;" />`
+                        ? `<br><a href="${imageUrl}">Image attachment</a>`
                         : ""
                 );
 
