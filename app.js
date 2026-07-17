@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const webhookRoutes = require("./routes/webhook");
 const taskWebhookRoutes = require("./routes/taskWebhook");
+const meetingWebhookRoutes = require("./routes/meetingWebhook");
 const {
     searchByPhone,
     createItem,
@@ -18,6 +19,7 @@ app.use(express.json());
 // Webhook Routes
 app.use("/webhook", webhookRoutes);
 app.use("/monday-task-webhook", taskWebhookRoutes);
+app.use("/monday-meeting-webhook", meetingWebhookRoutes);
 
 // ===============================
 // SEARCH ITEM
