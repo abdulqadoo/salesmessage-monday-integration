@@ -26,7 +26,29 @@ function extractClientName(meetingTitle) {
     return meetingTitle.trim();
 
 }
+// =====================================
+// EXTRACT SECOND EMAIL FROM SEMICOLON-SEPARATED LIST
+// e.g. "ash@valuebuildersgroup.com;akshara.kuduvalli@gmail.com" -> "akshara.kuduvalli@gmail.com"
+// =====================================
+function extractClientEmail(rawEmailField) {
 
+    if (!rawEmailField) {
+        return null;
+    }
+
+    const emails = rawEmailField
+        .split(";")
+        .map(e => e.trim())
+        .filter(Boolean);
+
+    if (emails.length >= 2) {
+        return emails[1]; // second email = client's email
+    }
+
+    // Fallback: only one email present, use it
+    return emails[0] || null;
+
+}
 
 exports.meetingWebhook = async (req, res) => {
 
@@ -49,9 +71,10 @@ exports.meetingWebhook = async (req, res) => {
 
         const meetingItem = await getItem(meetingItemId);
 
-        const emailColumn = meetingItem?.column_values?.find(
-            c => c.id === MEETINGS_EMAIL_COLUMN_ID
-        );
+        const rawEmail = emailColumn?.text;
+const email = extractClientEmail(rawEmail);
+
+console.log("Raw email field:", rawEmail, "-> Using:", email);
 
         const email = emailColumn?.text;
 
