@@ -4,9 +4,6 @@ const express = require("express");
 const webhookRoutes = require("./routes/webhook");
 const taskWebhookRoutes = require("./routes/taskWebhook");
 const meetingWebhookRoutes = require("./routes/meetingWebhook");
-app.use("/webhook", webhookRoutes);
-app.use("/monday-task-webhook", taskWebhookRoutes);
-app.use("/monday-meeting-webhook", meetingWebhookRoutes);
 
 const {
     searchByPhone,
@@ -24,6 +21,7 @@ app.use(express.json());
 app.use("/webhook", webhookRoutes);
 app.use("/monday-task-webhook", taskWebhookRoutes);
 app.use("/monday-meeting-webhook", meetingWebhookRoutes);
+
 
 // ===============================
 // SEARCH ITEM
@@ -133,6 +131,7 @@ app.get("/messages", async (req, res) => {
     }
 
 });
+
 // ===============================
 // START SERVER
 // ===============================
