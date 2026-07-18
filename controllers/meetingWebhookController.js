@@ -1,9 +1,32 @@
-const { searchByPhone, createItem, connectItems, getItem } = require("../services/mondayService");
+const { searchByEmail, createItemWithEmail, connectItems, getItem } = require("../services/mondayService");
 
 const RELATIONSHIP_BOARD_ID = process.env.RELATIONSHIP_BOARD_ID;
-const MEETINGS_BOARD_ID = "18415945114";
-const MEETINGS_PHONE_COLUMN_ID = "long_text_mm3zh6v2";
-const MEETINGS_CONNECT_COLUMN_ID = "board_relation_mm4126wx";
+const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
+const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
+const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
+const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
+
+
+// =====================================
+// EXTRACT CLIENT NAME FROM MEETING TITLE
+// e.g. "Call Ash and Akshara Kuduvalli" -> "Akshara Kuduvalli"
+// =====================================
+function extractClientName(meetingTitle) {
+
+    if (!meetingTitle) {
+        return meetingTitle;
+    }
+
+    const parts = meetingTitle.split(/\s+and\s+/i);
+
+    if (parts.length > 1) {
+        return parts[parts.length - 1].trim();
+    }
+
+    return meetingTitle.trim();
+
+}
+
 
 exports.meetingWebhook = async (req, res) => {
 
@@ -24,27 +47,24 @@ exports.meetingWebhook = async (req, res) => {
 
         const meetingItemId = event.pulseId;
 
-        // Get the phone number value off the new Meetings item
         const meetingItem = await getItem(meetingItemId);
 
-        const phoneColumn = meetingItem?.column_values?.find(
-            c => c.id === MEETINGS_PHONE_COLUMN_ID
+        const emailColumn = meetingItem?.column_values?.find(
+            c => c.id === MEETINGS_EMAIL_COLUMN_ID
         );
 
-        // long_text columns store the value as plain text already
-        const rawText = phoneColumn?.text || "";
+        const email = emailColumn?.text;
 
-        // Pull out a phone-number-looking sequence of digits from the text
-        const phoneMatch = rawText.match(/[\d+][\d\s\-().]{6,}\d/);
-        const phone = phoneMatch ? phoneMatch[0].replace(/[^\d+]/g, "") : null;
-
-        if (!phone) {
-            console.log("No phone number found in text column, skipping.");
+        if (!email) {
+            console.log("No email found on meeting item, skipping.");
             return res.status(200).json({ success: true });
         }
 
-        // Search Relationship board for matching phone
-        const matches = await searchByPhone(phone);
+        const matches = await searchByEmail(
+            RELATIONSHIP_BOARD_ID,
+            RELATIONSHIP_EMAIL_COLUMN_ID,
+            email
+        );
 
         let relationshipItemId;
 
@@ -55,18 +75,21 @@ exports.meetingWebhook = async (req, res) => {
 
         } else {
 
-            console.log("No match found, creating new Relationship item...");
+            const clientName = extractClientName(meetingItem.name);
 
-            const newItem = await createItem({
-                name: meetingItem.name,
-                phone: phone
-            });
+            console.log("No match found. Extracted client name:", clientName, "from meeting title:", meetingItem.name);
+
+            const newItem = await createItemWithEmail(
+                RELATIONSHIP_BOARD_ID,
+                RELATIONSHIP_EMAIL_COLUMN_ID,
+                clientName,
+                email
+            );
 
             relationshipItemId = newItem.id;
 
         }
 
-        // Connect the Meetings item to the Relationship item
         await connectItems(
             MEETINGS_BOARD_ID,
             meetingItemId,

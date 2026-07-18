@@ -576,7 +576,66 @@ async function createSmsTimelineItem(itemId, title, content) {
         throw error;
     }
 }
+async function searchByEmail(boardId, emailColumnId, email) {
 
+    const query = `
+        query {
+            items_page_by_column_values(
+                board_id: ${boardId},
+                columns: [{
+                    column_id: "${emailColumnId}",
+                    column_values: ["${email}"]
+                }]
+            ) {
+                items {
+                    id
+                    name
+                }
+            }
+        }
+    `;
+
+    try {
+        const response = await monday.post("", { query });
+        return response.data.data.items_page_by_column_values.items;
+    } catch (error) {
+        console.log(error.response?.data || error.message);
+        return [];
+    }
+
+}
+
+async function createItemWithEmail(boardId, emailColumnId, name, email) {
+
+    const mutation = `
+        mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
+            create_item(
+                board_id: $boardId,
+                item_name: $itemName,
+                column_values: $columnValues
+            ) {
+                id
+                name
+            }
+        }
+    `;
+
+    const variables = {
+        boardId: String(boardId),
+        itemName: name,
+        columnValues: JSON.stringify({ [emailColumnId]: email })
+    };
+
+    try {
+        const response = await monday.post("", { query: mutation, variables });
+        if (response.data.errors) throw new Error(JSON.stringify(response.data.errors));
+        return response.data.data.create_item;
+    } catch (error) {
+        console.log(error.response?.data || error.message);
+        throw error;
+    }
+
+}
 module.exports = {
     searchByPhone,
     createItem,
@@ -589,5 +648,7 @@ module.exports = {
     createTask,
     connectItems,
     getItem,
-    createSmsTimelineItem
+    createSmsTimelineItem,
+    searchByEmail,
+    createItemWithEmail
 };
