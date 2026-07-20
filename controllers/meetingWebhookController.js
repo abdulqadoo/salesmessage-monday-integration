@@ -71,14 +71,18 @@ exports.meetingWebhook = async (req, res) => {
 
         const meetingItemId = event.pulseId;
 
-        const meetingItem = await getItem(meetingItemId);
+       const rawEmail = event.columnValues?.[MEETINGS_EMAIL_COLUMN_ID]?.value;
+const email = extractClientEmail(rawEmail);
 
-        const emailColumn = meetingItem?.column_values?.find(
-            c => c.id === MEETINGS_EMAIL_COLUMN_ID
-        );
+console.log("Raw email field:", rawEmail, "-> Using:", email);
 
-        const rawEmail = emailColumn?.text;
-        const email = extractClientEmail(rawEmail);
+if (!email) {
+    console.log("No email found on meeting item, skipping.");
+    return res.status(200).json({ success: true });
+}
+
+// Still need the item's name for extractClientName later, so fetch it
+const meetingItem = await getItem(meetingItemId);
 
         console.log("Raw email field:", rawEmail, "-> Using:", email);
 
