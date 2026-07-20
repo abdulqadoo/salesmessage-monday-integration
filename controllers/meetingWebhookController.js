@@ -1,6 +1,6 @@
 const { searchByEmail, createItemWithEmail, connectItems, getItem } = require("../services/mondayService");
 
-const RELATIONSHIP_BOARD_ID = process.env.RELATIONSHIP_BOARD_ID;
+const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
 const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
 const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
@@ -26,6 +26,8 @@ function extractClientName(meetingTitle) {
     return meetingTitle.trim();
 
 }
+
+
 // =====================================
 // EXTRACT SECOND EMAIL FROM SEMICOLON-SEPARATED LIST
 // e.g. "ash@valuebuildersgroup.com;akshara.kuduvalli@gmail.com" -> "akshara.kuduvalli@gmail.com"
@@ -42,13 +44,13 @@ function extractClientEmail(rawEmailField) {
         .filter(Boolean);
 
     if (emails.length >= 2) {
-        return emails[1]; // second email = client's email
+        return emails[1];
     }
 
-    // Fallback: only one email present, use it
     return emails[0] || null;
 
 }
+
 
 exports.meetingWebhook = async (req, res) => {
 
@@ -71,15 +73,14 @@ exports.meetingWebhook = async (req, res) => {
 
         const meetingItem = await getItem(meetingItemId);
 
+        const emailColumn = meetingItem?.column_values?.find(
+            c => c.id === MEETINGS_EMAIL_COLUMN_ID
+        );
+
         const rawEmail = emailColumn?.text;
-const email = extractClientEmail(rawEmail);
+        const email = extractClientEmail(rawEmail);
 
-console.log("Raw email field:", rawEmail, "-> Using:", email);
-
-const rawEmail = emailColumn?.text;
-const email = extractClientEmail(rawEmail);
-
-console.log("Raw email field:", rawEmail, "-> Using:", email);
+        console.log("Raw email field:", rawEmail, "-> Using:", email);
 
         if (!email) {
             console.log("No email found on meeting item, skipping.");
