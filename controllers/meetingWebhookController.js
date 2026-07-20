@@ -76,7 +76,10 @@ const email = extractClientEmail(rawEmail);
 
 console.log("Raw email field:", rawEmail, "-> Using:", email);
 
-        const email = emailColumn?.text;
+const rawEmail = emailColumn?.text;
+const email = extractClientEmail(rawEmail);
+
+console.log("Raw email field:", rawEmail, "-> Using:", email);
 
         if (!email) {
             console.log("No email found on meeting item, skipping.");
