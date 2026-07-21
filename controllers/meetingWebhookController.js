@@ -6,6 +6,10 @@ const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
 const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
 
+// Duplicate protection - survives across retries and duplicate webhook fires
+// within the same running process
+const processedMeetings = new Set();
+
 
 // =====================================
 // EXTRACT CLIENT NAME FROM MEETING TITLE
@@ -52,43 +56,44 @@ function extractClientEmail(rawEmailField) {
 }
 
 
-exports.meetingWebhook = async (req, res) => {
+// =====================================
+// ACTUAL PROCESSING LOGIC (runs after we've already responded to Monday)
+// =====================================
+async function processMeetingWebhook(req) {
 
     try {
 
         console.log("========== MEETING WEBHOOK ==========");
         console.log(JSON.stringify(req.body, null, 2));
 
-        if (req.body.challenge) {
-            return res.status(200).json({ challenge: req.body.challenge });
-        }
-
         const event = req.body.event;
 
         if (!event) {
-            return res.status(200).json({ success: true });
+            return;
         }
 
         const meetingItemId = event.pulseId;
 
-       const rawEmail = event.columnValues?.[MEETINGS_EMAIL_COLUMN_ID]?.value;
-const email = extractClientEmail(rawEmail);
+        if (!meetingItemId) {
+            console.log("No pulseId found, skipping.");
+            return;
+        }
 
-console.log("Raw email field:", rawEmail, "-> Using:", email);
+        if (processedMeetings.has(meetingItemId)) {
+            console.log("Duplicate meeting webhook ignored:", meetingItemId);
+            return;
+        }
 
-if (!email) {
-    console.log("No email found on meeting item, skipping.");
-    return res.status(200).json({ success: true });
-}
+        processedMeetings.add(meetingItemId);
 
-// Still need the item's name for extractClientName later, so fetch it
-const meetingItem = await getItem(meetingItemId);
+        const rawEmail = event.columnValues?.[MEETINGS_EMAIL_COLUMN_ID]?.value;
+        const email = extractClientEmail(rawEmail);
 
         console.log("Raw email field:", rawEmail, "-> Using:", email);
 
         if (!email) {
             console.log("No email found on meeting item, skipping.");
-            return res.status(200).json({ success: true });
+            return;
         }
 
         const matches = await searchByEmail(
@@ -106,9 +111,10 @@ const meetingItem = await getItem(meetingItemId);
 
         } else {
 
-            const clientName = extractClientName(meetingItem.name);
+            const meetingItem = await getItem(meetingItemId);
+            const clientName = extractClientName(meetingItem?.name || event.pulseName);
 
-            console.log("No match found. Extracted client name:", clientName, "from meeting title:", meetingItem.name);
+            console.log("No match found. Extracted client name:", clientName);
 
             const newItem = await createItemWithEmail(
                 RELATIONSHIP_BOARD_ID,
@@ -130,17 +136,23 @@ const meetingItem = await getItem(meetingItemId);
 
         console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
 
-        return res.status(200).json({ success: true });
-
     } catch (err) {
 
         console.error("Meeting Webhook Error:", err);
 
-        return res.status(500).json({
-            success: false,
-            error: err.message
-        });
-
     }
+
+}
+
+
+exports.meetingWebhook = async (req, res) => {
+
+    if (req.body.challenge) {
+        return res.status(200).json({ challenge: req.body.challenge });
+    }
+
+    res.status(200).json({ success: true });
+
+    await processMeetingWebhook(req);
 
 };
