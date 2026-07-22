@@ -2,10 +2,13 @@ const { searchByEmail, createItemWithEmail, connectItems, getItem } = require(".
 
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
+const RELATIONSHIP_PHONE_COLUMN_ID = process.env.PHONE_COLUMN;
 const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
 const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
+const MEETINGS_PHONE_COLUMN_ID = process.env.MEETINGS_PHONE_COLUMN_ID;
 const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
 const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_ID;
+
 // Duplicate protection - survives across retries and duplicate webhook fires
 // within the same running process
 const processedMeetings = new Set();
@@ -52,6 +55,44 @@ function extractClientEmail(rawEmailField) {
     }
 
     return emails[0] || null;
+
+}
+
+
+// =====================================
+// EXTRACT PHONE NUMBER FROM FREE-FORM CALENDAR TEXT
+// e.g. "Ash to call 6506607551\nPlease provide your address..." -> "+16506607551"
+// Deliberately looks for a 10-digit (or 11-digit w/ leading 1) run of digits,
+// with optional separators, so it doesn't accidentally grab a zip code (5 digits)
+// or digits embedded inside URLs/tokens (mixed alphanumeric, won't match).
+// =====================================
+function extractPhoneFromText(rawText) {
+
+    if (!rawText) {
+        return null;
+    }
+
+    const match = rawText.match(
+        /(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/
+    );
+
+    if (!match) {
+        return null;
+    }
+
+    const digits = match[0].replace(/\D/g, "");
+
+    if (digits.length === 10) {
+        return `+1${digits}`;
+    }
+
+    if (digits.length === 11 && digits.startsWith("1")) {
+        return `+${digits}`;
+    }
+
+    // Unexpected length — return raw digits rather than silently drop it,
+    // so it's still visible/reviewable on the board instead of vanishing.
+    return digits;
 
 }
 
@@ -114,13 +155,22 @@ async function processMeetingWebhook(req) {
             const meetingItem = await getItem(meetingItemId);
             const clientName = extractClientName(meetingItem?.name || event.pulseName);
 
+            const rawPhoneText =
+                event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
+                event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.value;
+
+            const phone = extractPhoneFromText(rawPhoneText);
+
             console.log("No match found. Extracted client name:", clientName);
+            console.log("Raw phone field:", rawPhoneText, "-> Extracted phone:", phone);
 
             const newItem = await createItemWithEmail(
                 RELATIONSHIP_BOARD_ID,
                 RELATIONSHIP_EMAIL_COLUMN_ID,
                 clientName,
-                email
+                email,
+                RELATIONSHIP_PHONE_COLUMN_ID,
+                phone
             );
 
             relationshipItemId = newItem.id;
@@ -128,21 +178,20 @@ async function processMeetingWebhook(req) {
         }
 
         // Connect Meetings item -> Relationship item
-await connectItems(
-    MEETINGS_BOARD_ID,
-    meetingItemId,
-    MEETINGS_CONNECT_COLUMN_ID,
-    relationshipItemId
-);
+        await connectItems(
+            MEETINGS_BOARD_ID,
+            meetingItemId,
+            MEETINGS_CONNECT_COLUMN_ID,
+            relationshipItemId
+        );
 
-// Connect Relationship item -> Meetings item (explicit, don't rely on two-way auto-sync)
-await connectItems(
-    RELATIONSHIP_BOARD_ID,
-    relationshipItemId,
-    RELATIONSHIP_CONNECT_COLUMN_ID,
-    meetingItemId
-);
-
+        // Connect Relationship item -> Meetings item (explicit, don't rely on two-way auto-sync)
+        await connectItems(
+            RELATIONSHIP_BOARD_ID,
+            relationshipItemId,
+            RELATIONSHIP_CONNECT_COLUMN_ID,
+            meetingItemId
+        );
 
         console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
 

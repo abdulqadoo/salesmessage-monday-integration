@@ -576,6 +576,10 @@ async function createSmsTimelineItem(itemId, title, content) {
         throw error;
     }
 }
+
+// =====================================
+// SEARCH RELATIONSHIP ITEM BY EMAIL
+// =====================================
 async function searchByEmail(boardId, emailColumnId, email) {
 
     const query = `
@@ -597,15 +601,34 @@ async function searchByEmail(boardId, emailColumnId, email) {
 
     try {
         const response = await monday.post("", { query });
+
+        if (response.data.errors) {
+            console.log("====== SEARCH BY EMAIL ERROR ======");
+            console.log(JSON.stringify(response.data.errors, null, 2));
+            return [];
+        }
+
         return response.data.data.items_page_by_column_values.items;
     } catch (error) {
+        console.log("====== SEARCH BY EMAIL ERROR ======");
         console.log(error.response?.data || error.message);
         return [];
     }
 
 }
 
-async function createItemWithEmail(boardId, emailColumnId, name, email) {
+// =====================================
+// CREATE RELATIONSHIP ITEM WITH EMAIL (+ OPTIONAL PHONE)
+// =====================================
+async function createItemWithEmail(boardId, emailColumnId, name, email, phoneColumnId, phone) {
+
+    const columnValues = {
+        [emailColumnId]: email
+    };
+
+    if (phoneColumnId && phone) {
+        columnValues[phoneColumnId] = phone;
+    }
 
     const mutation = `
         mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
@@ -623,19 +646,25 @@ async function createItemWithEmail(boardId, emailColumnId, name, email) {
     const variables = {
         boardId: String(boardId),
         itemName: name,
-        columnValues: JSON.stringify({ [emailColumnId]: email })
+        columnValues: JSON.stringify(columnValues)
     };
 
     try {
         const response = await monday.post("", { query: mutation, variables });
+
+        console.log("====== CREATE RELATIONSHIP ITEM RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
         if (response.data.errors) throw new Error(JSON.stringify(response.data.errors));
         return response.data.data.create_item;
     } catch (error) {
+        console.log("====== CREATE RELATIONSHIP ITEM ERROR ======");
         console.log(error.response?.data || error.message);
         throw error;
     }
 
 }
+
 module.exports = {
     searchByPhone,
     createItem,
