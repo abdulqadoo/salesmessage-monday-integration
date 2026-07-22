@@ -623,7 +623,7 @@ async function searchByEmail(boardId, emailColumnId, email) {
 async function createItemWithEmail(boardId, emailColumnId, name, email, phoneColumnId, phone) {
 
     const columnValues = {
-        [emailColumnId]: email
+        [emailColumnId]: { email: email, text: email }
     };
 
     if (phoneColumnId && phone) {
