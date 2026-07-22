@@ -143,7 +143,6 @@ await connectItems(
     meetingItemId
 );
 
-
         console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
 
     } catch (err) {
