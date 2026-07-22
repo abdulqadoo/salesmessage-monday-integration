@@ -5,7 +5,7 @@ const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
 const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
 const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
-
+const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_ID;
 // Duplicate protection - survives across retries and duplicate webhook fires
 // within the same running process
 const processedMeetings = new Set();
@@ -127,12 +127,21 @@ async function processMeetingWebhook(req) {
 
         }
 
-        await connectItems(
-            MEETINGS_BOARD_ID,
-            meetingItemId,
-            MEETINGS_CONNECT_COLUMN_ID,
-            relationshipItemId
-        );
+        // Connect Meetings item -> Relationship item
+await connectItems(
+    MEETINGS_BOARD_ID,
+    meetingItemId,
+    MEETINGS_CONNECT_COLUMN_ID,
+    relationshipItemId
+);
+
+// Connect Relationship item -> Meetings item (explicit, don't rely on two-way auto-sync)
+await connectItems(
+    RELATIONSHIP_BOARD_ID,
+    relationshipItemId,
+    RELATIONSHIP_CONNECT_COLUMN_ID,
+    meetingItemId
+);
 
         console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
 
