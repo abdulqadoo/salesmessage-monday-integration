@@ -697,8 +697,6 @@ async function updateColumnValues(boardId, itemId, columnValuesObject) {
     }
 
 }
-
-
 module.exports = {
     searchByPhone,
     createItem,
