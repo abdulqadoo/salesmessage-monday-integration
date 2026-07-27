@@ -664,6 +664,39 @@ async function createItemWithEmail(boardId, emailColumnId, name, email, phoneCol
     }
 
 }
+// =====================================
+// UPDATE MULTIPLE COLUMN VALUES (generic)
+// =====================================
+async function updateColumnValues(boardId, itemId, columnValuesObject) {
+
+    const mutation = `
+        mutation ($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+            change_multiple_column_values(
+                board_id: $boardId,
+                item_id: $itemId,
+                column_values: $columnValues
+            ) {
+                id
+            }
+        }
+    `;
+
+    const variables = {
+        boardId: String(boardId),
+        itemId: String(itemId),
+        columnValues: JSON.stringify(columnValuesObject)
+    };
+
+    try {
+        const response = await monday.post("", { query: mutation, variables });
+        if (response.data.errors) throw new Error(JSON.stringify(response.data.errors));
+        return response.data.data.change_multiple_column_values;
+    } catch (error) {
+        console.log(error.response?.data || error.message);
+        throw error;
+    }
+
+}
 
 module.exports = {
     searchByPhone,
@@ -679,5 +712,6 @@ module.exports = {
     getItem,
     createSmsTimelineItem,
     searchByEmail,
-    createItemWithEmail
+    createItemWithEmail,
+    updateColumnValues
 };

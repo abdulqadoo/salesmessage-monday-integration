@@ -1,4 +1,5 @@
-const { searchByEmail, createItemWithEmail, connectItems, getItem } = require("../services/mondayService");
+const { searchByEmail, createItemWithEmail, connectItems, getItem, updateColumnValues } = require("../services/mondayService");
+const { findMatchingCalendarEvent } = require("../services/calendarService");
 
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
@@ -8,16 +9,12 @@ const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_PHONE_COLUMN_ID = process.env.MEETINGS_PHONE_COLUMN_ID;
 const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
 const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_ID;
+const MEETINGS_DATE_COLUMN_ID = process.env.MEETINGS_DATE_COLUMN_ID || "date_mm3ybgbv";
+const MEETINGS_CALENDAR_LINK_COLUMN = process.env.MEETINGS_CALENDAR_LINK_COLUMN;
 
-// Duplicate protection - survives across retries and duplicate webhook fires
-// within the same running process
 const processedMeetings = new Set();
 
 
-// =====================================
-// EXTRACT CLIENT NAME FROM MEETING TITLE
-// e.g. "Call Ash and Akshara Kuduvalli" -> "Akshara Kuduvalli"
-// =====================================
 function extractClientName(meetingTitle) {
 
     if (!meetingTitle) {
@@ -35,10 +32,6 @@ function extractClientName(meetingTitle) {
 }
 
 
-// =====================================
-// EXTRACT SECOND EMAIL FROM SEMICOLON-SEPARATED LIST
-// e.g. "ash@valuebuildersgroup.com;akshara.kuduvalli@gmail.com" -> "akshara.kuduvalli@gmail.com"
-// =====================================
 function extractClientEmail(rawEmailField) {
 
     if (!rawEmailField) {
@@ -59,13 +52,6 @@ function extractClientEmail(rawEmailField) {
 }
 
 
-// =====================================
-// EXTRACT PHONE NUMBER FROM FREE-FORM CALENDAR TEXT
-// e.g. "Ash to call 6506607551\nPlease provide your address..." -> "+16506607551"
-// Deliberately looks for a 10-digit (or 11-digit w/ leading 1) run of digits,
-// with optional separators, so it doesn't accidentally grab a zip code (5 digits)
-// or digits embedded inside URLs/tokens (mixed alphanumeric, won't match).
-// =====================================
 function extractPhoneFromText(rawText) {
 
     if (!rawText) {
@@ -90,16 +76,26 @@ function extractPhoneFromText(rawText) {
         return `+${digits}`;
     }
 
-    // Unexpected length — return raw digits rather than silently drop it,
-    // so it's still visible/reviewable on the board instead of vanishing.
     return digits;
 
 }
 
 
-// =====================================
-// ACTUAL PROCESSING LOGIC (runs after we've already responded to Monday)
-// =====================================
+function buildStartDateTime(event) {
+
+    const dateInfo = event.columnValues?.[MEETINGS_DATE_COLUMN_ID];
+
+    if (!dateInfo?.date) {
+        return null;
+    }
+
+    const time = dateInfo.time || "00:00:00";
+
+    return `${dateInfo.date}T${time}`;
+
+}
+
+
 async function processMeetingWebhook(req) {
 
     try {
@@ -177,7 +173,6 @@ async function processMeetingWebhook(req) {
 
         }
 
-        // Connect Meetings item -> Relationship item
         await connectItems(
             MEETINGS_BOARD_ID,
             meetingItemId,
@@ -185,7 +180,6 @@ async function processMeetingWebhook(req) {
             relationshipItemId
         );
 
-        // Connect Relationship item -> Meetings item (explicit, don't rely on two-way auto-sync)
         await connectItems(
             RELATIONSHIP_BOARD_ID,
             relationshipItemId,
@@ -194,6 +188,38 @@ async function processMeetingWebhook(req) {
         );
 
         console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
+
+        const startDateTime = buildStartDateTime(event);
+
+        if (startDateTime && MEETINGS_CALENDAR_LINK_COLUMN) {
+
+            const matchedEvent = await findMatchingCalendarEvent({
+                title: event.pulseName,
+                startDateTime
+            });
+
+            if (matchedEvent) {
+
+                await updateColumnValues(MEETINGS_BOARD_ID, meetingItemId, {
+                    [MEETINGS_CALENDAR_LINK_COLUMN]: {
+                        url: matchedEvent.htmlLink,
+                        text: "Open in Google Calendar"
+                    }
+                });
+
+                console.log("✅ Calendar link saved to Monday item");
+
+            } else {
+
+                console.log("No matching Google Calendar event found for this meeting - leaving link column empty.");
+
+            }
+
+        } else {
+
+            console.log("Could not build a start time from meeting item, or link column not configured - skipping calendar search.");
+
+        }
 
     } catch (err) {
 
