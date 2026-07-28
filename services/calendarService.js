@@ -1,24 +1,10 @@
-const { google } = require("googleapis");
+const calendar = require("../config/google");
 
-const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
 
 
 function getCalendarClient() {
-
-    if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
-        throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_PRIVATE_KEY");
-    }
-
-    const auth = new google.auth.JWT({
-        email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        key: GOOGLE_PRIVATE_KEY,
-        scopes: ["https://www.googleapis.com/auth/calendar.readonly"]
-    });
-
-    return google.calendar({ version: "v3", auth });
-
+    return calendar;
 }
 
 
