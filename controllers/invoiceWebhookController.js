@@ -1,6 +1,7 @@
 const { renameItem } = require("../services/mondayService");
 
 const BUILDER_COLUMN_ID = process.env.INVOICES_BUILDER_COLUMN_ID;
+const OTHER_BUILDER_NAME_COLUMN_ID = process.env.INVOICES_OTHER_BUILDER_COLUMN_ID; // <-- new
 
 async function processInvoiceWebhook(req) {
 
@@ -24,10 +25,24 @@ async function processInvoiceWebhook(req) {
 
         const builderColumnData = event.columnValues?.[BUILDER_COLUMN_ID];
 
-    const builderValue =
-    builderColumnData?.chosenValues?.[0]?.name ||
-    builderColumnData?.text ||
-    builderColumnData?.value;
+        let builderValue =
+            builderColumnData?.chosenValues?.[0]?.name ||
+            builderColumnData?.text ||
+            builderColumnData?.value;
+
+        // If "Other" was selected, use the typed-in name instead
+        if (builderValue && builderValue.toLowerCase() === "other") {
+
+            const otherNameData = event.columnValues?.[OTHER_BUILDER_NAME_COLUMN_ID];
+            const otherName = otherNameData?.text || otherNameData?.value;
+
+            console.log("Builder was 'Other', using typed name instead:", otherName);
+
+            if (otherName) {
+                builderValue = otherName;
+            }
+
+        }
 
         if (!builderValue) {
             console.log("No Builder value found, skipping rename.");
