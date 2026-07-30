@@ -124,7 +124,6 @@ async function addMondayLinkToEvent(eventId, mondayItemUrl) {
 
 }
 
-
 module.exports = {
     findMatchingCalendarEvent,
     addMondayLinkToEvent
