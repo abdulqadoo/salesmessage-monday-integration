@@ -22,9 +22,12 @@ async function processInvoiceWebhook(req) {
             return;
         }
 
-        const builderValue =
-            event.columnValues?.[BUILDER_COLUMN_ID]?.text ||
-            event.columnValues?.[BUILDER_COLUMN_ID]?.value;
+        const builderColumnData = event.columnValues?.[BUILDER_COLUMN_ID];
+
+    const builderValue =
+    builderColumnData?.chosenValues?.[0]?.name ||
+    builderColumnData?.text ||
+    builderColumnData?.value;
 
         if (!builderValue) {
             console.log("No Builder value found, skipping rename.");
