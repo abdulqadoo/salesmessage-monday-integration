@@ -697,6 +697,36 @@ async function updateColumnValues(boardId, itemId, columnValuesObject) {
     }
 
 }
+async function renameItem(itemId, newName) {
+
+    const query = `
+        mutation ($itemId: ID!, $boardId: ID!, $newName: String!) {
+            change_simple_column_value(
+                item_id: $itemId,
+                board_id: $boardId,
+                column_id: "name",
+                value: $newName
+            ) {
+                id
+            }
+        }
+    `;
+
+    const response = await monday.post("", {
+        query,
+        variables: {
+            itemId,
+            boardId: process.env.INVOICES_BOARD_ID,
+            newName
+        }
+    });
+
+    console.log("====== RENAME RESPONSE ======");
+    console.log(JSON.stringify(response.data, null, 2));
+
+    return response.data;
+
+}
 
 module.exports = {
     searchByPhone,
@@ -713,5 +743,6 @@ module.exports = {
     createSmsTimelineItem,
     searchByEmail,
     createItemWithEmail,
-    updateColumnValues
+    updateColumnValues,
+    renameItem
 };
