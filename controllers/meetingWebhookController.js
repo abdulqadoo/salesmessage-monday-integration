@@ -1,5 +1,5 @@
 const { searchByEmail, createItemWithEmail, connectItems, getItem, updateColumnValues } = require("../services/mondayService");
-const { findMatchingCalendarEvent } = require("../services/calendarService");
+const { findMatchingCalendarEvent, addMondayLinkToEvent } = require("../services/calendarService");
 
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
@@ -11,6 +11,7 @@ const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
 const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_ID;
 const MEETINGS_DATE_COLUMN_ID = process.env.MEETINGS_DATE_COLUMN_ID || "date_mm3ybgbv";
 const MEETINGS_CALENDAR_LINK_COLUMN = process.env.MEETINGS_CALENDAR_LINK_COLUMN;
+const MONDAY_ACCOUNT_SUBDOMAIN = process.env.MONDAY_ACCOUNT_SUBDOMAIN || "YOUR-MONDAY-SUBDOMAIN";
 
 const processedMeetings = new Set();
 
@@ -208,6 +209,9 @@ async function processMeetingWebhook(req) {
                 });
 
                 console.log("✅ Calendar link saved to Monday item");
+
+                const mondayItemUrl = `https://${MONDAY_ACCOUNT_SUBDOMAIN}.monday.com/boards/${MEETINGS_BOARD_ID}/pulses/${meetingItemId}`;
+                await addMondayLinkToEvent(matchedEvent.eventId, mondayItemUrl);
 
             } else {
 

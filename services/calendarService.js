@@ -1,93 +1,40 @@
-const calendar = require("../config/google");
-
-const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
-
-
-function getCalendarClient() {
-    return calendar;
-}
-
-
-function normalizeTitle(title) {
-    return String(title || "").toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-
-async function findMatchingCalendarEvent({ title, startDateTime, windowMinutesBefore = 60, windowMinutesAfter = 60 }) {
+async function addMondayLinkToEvent(eventId, mondayItemUrl) {
 
     const calendar = getCalendarClient();
 
     try {
 
-        const centerTime = new Date(startDateTime);
-
-        if (isNaN(centerTime.getTime())) {
-            console.log("Invalid startDateTime provided, cannot search calendar:", startDateTime);
-            return null;
-        }
-
-        const timeMin = new Date(centerTime.getTime() - windowMinutesBefore * 60 * 1000).toISOString();
-        const timeMax = new Date(centerTime.getTime() + windowMinutesAfter * 60 * 1000).toISOString();
-
-        console.log("====== CALENDAR SEARCH ======");
-        console.log("Title:", title, "| Window:", timeMin, "->", timeMax);
-
-        const response = await calendar.events.list({
+        const existing = await calendar.events.get({
             calendarId: GOOGLE_CALENDAR_ID,
-            timeMin,
-            timeMax,
-            singleEvents: true,
-            orderBy: "startTime",
-            maxResults: 50
+            eventId
         });
 
-        const events = response.data.items || [];
+        const existingDescription = existing.data.description || "";
 
-        console.log(
-            "Candidate events found:",
-            events.map(e => ({ id: e.id, summary: e.summary, start: e.start?.dateTime }))
-        );
+        const updatedDescription = existingDescription.includes(mondayItemUrl)
+            ? existingDescription
+            : `${existingDescription}\n\nMonday Item: ${mondayItemUrl}`.trim();
 
-        if (events.length === 0) {
-            return null;
-        }
+        await calendar.events.patch({
+            calendarId: GOOGLE_CALENDAR_ID,
+            eventId,
+            requestBody: {
+                description: updatedDescription
+            }
+        });
 
-        const normalizedTarget = normalizeTitle(title);
-
-        let match = events.find(e => normalizeTitle(e.summary) === normalizedTarget);
-
-        if (!match) {
-            match = events.find(e =>
-                normalizeTitle(e.summary).includes(normalizedTarget) ||
-                normalizedTarget.includes(normalizeTitle(e.summary))
-            );
-        }
-
-        if (!match) {
-            console.log("No title match found among candidates in this time window.");
-            return null;
-        }
-
-        console.log("✅ Matched calendar event:", match.summary, match.id);
-
-        return {
-            eventId: match.id,
-            htmlLink: match.htmlLink,
-            summary: match.summary,
-            start: match.start?.dateTime
-        };
+        console.log("✅ Monday link added to Google Calendar event:", eventId);
 
     } catch (error) {
 
-        console.log("====== CALENDAR SEARCH ERROR ======");
+        console.log("====== ADD MONDAY LINK ERROR ======");
         console.log(error.response?.data || error.message);
-        return null;
 
     }
 
 }
 
-
 module.exports = {
-    findMatchingCalendarEvent
+    findMatchingCalendarEvent,
+    addMondayLinkToEvent
 };
