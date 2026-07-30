@@ -32,6 +32,9 @@ async function findMatchingCalendarEvent({ title, startDateTime, windowMinutesBe
         console.log("====== CALENDAR SEARCH ======");
         console.log("Title:", title, "| Window:", timeMin, "->", timeMax);
 
+        console.log("DEBUG calendarId being used:", JSON.stringify(GOOGLE_CALENDAR_ID));
+        console.log("DEBUG service account email:", JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON).client_email);
+
         const response = await calendarClient.events.list({
             calendarId: GOOGLE_CALENDAR_ID,
             timeMin,
