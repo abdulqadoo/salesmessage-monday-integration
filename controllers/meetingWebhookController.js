@@ -210,7 +210,10 @@ async function processMeetingWebhook(req) {
 
                 console.log("✅ Calendar link saved to Monday item");
 
-                const mondayItemUrl = `https://${MONDAY_ACCOUNT_SUBDOMAIN}.monday.com/boards/${MEETINGS_BOARD_ID}/pulses/${meetingItemId}`;
+                // Point the link added to the Calendar event at the
+                // connected Relationship item (the client record), not
+                // the Meetings item itself.
+                const mondayItemUrl = `https://${MONDAY_ACCOUNT_SUBDOMAIN}.monday.com/boards/${RELATIONSHIP_BOARD_ID}/pulses/${relationshipItemId}`;
                 await addMondayLinkToEvent(matchedEvent.eventId, mondayItemUrl);
 
             } else {
