@@ -1,9 +1,10 @@
 const { updateColumnValues } = require("../services/mondayService");
 
-console.log("DEBUG ADDRESS_COLUMN_ID env value:", JSON.stringify(ADDRESS_COLUMN_ID));
 const ADDRESS_BOARD_ID = process.env.BOARD_ID;
 const ADDRESS_COLUMN_ID = process.env.ADDRESS_COLUMN_ID;
 const LOCATION_LINK_COLUMN_ID = process.env.LOCATION_LINK_COLUMN_ID;
+
+console.log("DEBUG ADDRESS_COLUMN_ID env value:", JSON.stringify(ADDRESS_COLUMN_ID));
 
 
 function buildGoogleEarthUrl(lat, lng) {
