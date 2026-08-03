@@ -30,7 +30,6 @@ async function processAddressWebhook(req) {
             return;
         }
 
-        // Only act when the specific Address column changed
         if (event.columnId !== ADDRESS_COLUMN_ID) {
             console.log("Changed column is not the Address column, skipping. Changed:", event.columnId);
             return;
@@ -69,6 +68,8 @@ async function processAddressWebhook(req) {
         }
 
         const earthUrl = buildGoogleEarthUrl(lat, lng);
+
+        console.log("DEBUG generated earthUrl:", earthUrl);
 
         await updateColumnValues(ADDRESS_BOARD_ID, itemId, {
             [LOCATION_LINK_COLUMN_ID]: {
