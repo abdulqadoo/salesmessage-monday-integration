@@ -7,8 +7,13 @@ const LOCATION_LINK_COLUMN_ID = process.env.LOCATION_LINK_COLUMN_ID;
 console.log("DEBUG ADDRESS_COLUMN_ID env value:", JSON.stringify(ADDRESS_COLUMN_ID));
 
 
+// =====================================
+// BUILD GOOGLE EARTH LINK FROM COORDINATES
+// =====================================
 function buildGoogleEarthUrl(lat, lng) {
+
     return `https://earth.google.com/web/@${lat},${lng},1000a,1000d,35y,0h,0t,0r`;
+
 }
 
 
@@ -25,6 +30,7 @@ async function processAddressWebhook(req) {
             return;
         }
 
+        // Only act when the specific Address column changed
         if (event.columnId !== ADDRESS_COLUMN_ID) {
             console.log("Changed column is not the Address column, skipping. Changed:", event.columnId);
             return;
@@ -33,22 +39,22 @@ async function processAddressWebhook(req) {
         const itemId = event.pulseId;
 
         const newAddress =
-         event.value?.address ||
-         event.value?.value?.address ||
-         event.value?.text ||
-         "";
+            event.value?.address ||
+            event.value?.value?.address ||
+            event.value?.text ||
+            "";
 
         const lat = event.value?.lat;
         const lng = event.value?.lng;
 
-        console.log("New address value:", newAddress);
+        console.log("New address value:", newAddress, "| lat:", lat, "| lng:", lng);
 
         if (!newAddress || !newAddress.trim()) {
 
             console.log("Address is empty - clearing Location Link column.");
 
             await updateColumnValues(ADDRESS_BOARD_ID, itemId, {
-                [LOCATION_LINK_COLUMN_ID]: ""
+                [LOCATION_LINK_COLUMN_ID]: { url: "", text: "" }
             });
 
             return;
@@ -56,14 +62,19 @@ async function processAddressWebhook(req) {
         }
 
         if (!lat || !lng) {
-    console.log("No coordinates found for this address, skipping link generation.");
-    return;
-}
 
-const earthUrl = buildGoogleEarthUrl(lat, lng);
+            console.log("No coordinates found for this address, skipping link generation.");
+            return;
+
+        }
+
+        const earthUrl = buildGoogleEarthUrl(lat, lng);
 
         await updateColumnValues(ADDRESS_BOARD_ID, itemId, {
-            [LOCATION_LINK_COLUMN_ID]: earthUrl
+            [LOCATION_LINK_COLUMN_ID]: {
+                url: earthUrl,
+                text: "View on Google Earth"
+            }
         });
 
         console.log("✅ Location Link updated:", earthUrl);
