@@ -13,7 +13,7 @@ async function createWebhook() {
             create_webhook (
                 board_id: ${ADDRESS_BOARD_ID},
                 url: "${WEBHOOK_URL}",
-                event: update_column_value,
+                event: change_specific_column_value,
                 config: "{\\"columnId\\":\\"${ADDRESS_COLUMN_ID}\\"}"
             ) {
                 id

@@ -1,16 +1,13 @@
 const { updateColumnValues } = require("../services/mondayService");
 
+console.log("DEBUG ADDRESS_COLUMN_ID env value:", JSON.stringify(ADDRESS_COLUMN_ID));
 const ADDRESS_BOARD_ID = process.env.BOARD_ID;
 const ADDRESS_COLUMN_ID = process.env.ADDRESS_COLUMN_ID;
 const LOCATION_LINK_COLUMN_ID = process.env.LOCATION_LINK_COLUMN_ID;
 
 
-function buildGoogleEarthUrl(address) {
-
-    const encoded = encodeURIComponent(address.trim());
-
-    return `https://earth.google.com/web/search/${encoded}`;
-
+function buildGoogleEarthUrl(lat, lng) {
+    return `https://earth.google.com/web/@${lat},${lng},1000a,1000d,35y,0h,0t,0r`;
 }
 
 
@@ -35,10 +32,13 @@ async function processAddressWebhook(req) {
         const itemId = event.pulseId;
 
         const newAddress =
-            event.value?.address ||
-            event.value?.value?.address ||
-            event.value?.text ||
-            "";
+         event.value?.address ||
+         event.value?.value?.address ||
+         event.value?.text ||
+         "";
+
+        const lat = event.value?.lat;
+        const lng = event.value?.lng;
 
         console.log("New address value:", newAddress);
 
@@ -54,7 +54,12 @@ async function processAddressWebhook(req) {
 
         }
 
-        const earthUrl = buildGoogleEarthUrl(newAddress);
+        if (!lat || !lng) {
+    console.log("No coordinates found for this address, skipping link generation.");
+    return;
+}
+
+const earthUrl = buildGoogleEarthUrl(lat, lng);
 
         await updateColumnValues(ADDRESS_BOARD_ID, itemId, {
             [LOCATION_LINK_COLUMN_ID]: earthUrl
