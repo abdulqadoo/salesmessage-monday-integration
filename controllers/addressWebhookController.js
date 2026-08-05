@@ -11,9 +11,7 @@ console.log("DEBUG ADDRESS_COLUMN_ID env value:", JSON.stringify(ADDRESS_COLUMN_
 // BUILD GOOGLE EARTH LINK FROM COORDINATES
 // =====================================
 function buildGoogleEarthUrl(lat, lng) {
-
     return `https://earth.google.com/web/@${lat},${lng},1000a,1000d,35y,0h,0t,0r`;
-
 }
 
 
