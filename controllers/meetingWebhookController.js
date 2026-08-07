@@ -33,6 +33,12 @@ function extractClientName(meetingTitle) {
 }
 
 
+const EXCLUDED_CLIENT_EMAILS = (process.env.EXCLUDED_CLIENT_EMAILS || "ash@valuebuildersgroup.com")
+    .split(",")
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+
+
 function extractClientEmail(rawEmailField) {
 
     if (!rawEmailField) {
@@ -44,11 +50,11 @@ function extractClientEmail(rawEmailField) {
         .map(e => e.trim())
         .filter(Boolean);
 
-    if (emails.length >= 2) {
-        return emails[1];
-    }
+    const validEmails = emails.filter(
+        e => !EXCLUDED_CLIENT_EMAILS.includes(e.toLowerCase())
+    );
 
-    return emails[0] || null;
+    return validEmails[0] || null;
 
 }
 
