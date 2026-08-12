@@ -12,6 +12,7 @@ const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_I
 const MEETINGS_DATE_COLUMN_ID = process.env.MEETINGS_DATE_COLUMN_ID || "date_mm3ybgbv";
 const MEETINGS_CALENDAR_LINK_COLUMN = process.env.MEETINGS_CALENDAR_LINK_COLUMN;
 const MONDAY_ACCOUNT_SUBDOMAIN = process.env.MONDAY_ACCOUNT_SUBDOMAIN || "YOUR-MONDAY-SUBDOMAIN";
+const DRY_RUN = process.env.DRY_RUN === "true";
 
 const processedMeetings = new Set();
 
@@ -167,18 +168,30 @@ async function processMeetingWebhook(req) {
             console.log("No match found. Extracted client name:", clientName);
             console.log("Raw phone field:", rawPhoneText, "-> Extracted phone:", phone);
 
-            const newItem = await createItemWithEmail(
-                RELATIONSHIP_BOARD_ID,
-                RELATIONSHIP_EMAIL_COLUMN_ID,
-                clientName,
-                email,
-                RELATIONSHIP_PHONE_COLUMN_ID,
-                phone
-            );
+            if (DRY_RUN) {
 
-            relationshipItemId = newItem.id;
+    console.log("🧪 DRY RUN - would create Relationship item with:", {
+        clientName,
+        email,
+        phone
+    });
 
-        }
+    relationshipItemId = "DRY_RUN_FAKE_ID";
+
+} else {
+
+    const newItem = await createItemWithEmail(
+        RELATIONSHIP_BOARD_ID,
+        RELATIONSHIP_EMAIL_COLUMN_ID,
+        clientName,
+        email,
+        RELATIONSHIP_PHONE_COLUMN_ID,
+        phone
+    );
+
+    relationshipItemId = newItem.id;
+
+}
 
         await connectItems(
             MEETINGS_BOARD_ID,

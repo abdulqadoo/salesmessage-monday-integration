@@ -8,6 +8,7 @@ const taskWebhookRoutes = require("./routes/taskWebhook");
 const meetingWebhookRoutes = require("./routes/meetingWebhook");
 const invoiceWebhookRoutes = require("./routes/invoiceWebhook");
 const addressWebhookRoutes = require("./routes/addressWebhook");
+const testMeetingWebhookRoutes = require("./routes/testMeetingWebhook");
 
 
 const {
@@ -28,6 +29,8 @@ app.use("/monday-task-webhook", taskWebhookRoutes);
 app.use("/monday-meeting-webhook", meetingWebhookRoutes);
 app.use("/invoice-webhook", invoiceWebhookRoutes);
 app.use("/monday-address-webhook", addressWebhookRoutes);
+app.use("/test-meeting-webhook", testMeetingWebhookRoutes);
+
 
 // ===============================
 // SEARCH ITEM
