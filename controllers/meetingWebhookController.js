@@ -34,12 +34,6 @@ function extractClientName(meetingTitle) {
 }
 
 
-const EXCLUDED_CLIENT_EMAILS = (process.env.EXCLUDED_CLIENT_EMAILS || "ash@valuebuildersgroup.com")
-    .split(",")
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-
-
 function extractClientEmail(rawEmailField) {
 
     if (!rawEmailField) {
@@ -51,11 +45,11 @@ function extractClientEmail(rawEmailField) {
         .map(e => e.trim())
         .filter(Boolean);
 
-    const validEmails = emails.filter(
-        e => !EXCLUDED_CLIENT_EMAILS.includes(e.toLowerCase())
-    );
+    if (emails.length >= 2) {
+        return emails[1];
+    }
 
-    return validEmails[0] || null;
+    return emails[0] || null;
 
 }
 
@@ -156,7 +150,7 @@ async function processMeetingWebhook(req) {
 
         } else {
 
-            const meetingItem = await getItem(meetingItemId);
+            const meetingItem = DRY_RUN ? null : await getItem(meetingItemId);
             const clientName = extractClientName(meetingItem?.name || event.pulseName);
 
             const rawPhoneText =
@@ -170,48 +164,58 @@ async function processMeetingWebhook(req) {
 
             if (DRY_RUN) {
 
-    console.log("🧪 DRY RUN - would create Relationship item with:", {
-        clientName,
-        email,
-        phone
-    });
+                console.log("🧪 DRY RUN - would create Relationship item with:", {
+                    clientName,
+                    email,
+                    phone
+                });
 
-    relationshipItemId = "DRY_RUN_FAKE_ID";
+                relationshipItemId = "DRY_RUN_FAKE_ID";
 
-} else {
+            } else {
 
-    const newItem = await createItemWithEmail(
-        RELATIONSHIP_BOARD_ID,
-        RELATIONSHIP_EMAIL_COLUMN_ID,
-        clientName,
-        email,
-        RELATIONSHIP_PHONE_COLUMN_ID,
-        phone
-    );
+                const newItem = await createItemWithEmail(
+                    RELATIONSHIP_BOARD_ID,
+                    RELATIONSHIP_EMAIL_COLUMN_ID,
+                    clientName,
+                    email,
+                    RELATIONSHIP_PHONE_COLUMN_ID,
+                    phone
+                );
 
-    relationshipItemId = newItem.id;
+                relationshipItemId = newItem.id;
 
-}
+            }
 
-        await connectItems(
-            MEETINGS_BOARD_ID,
-            meetingItemId,
-            MEETINGS_CONNECT_COLUMN_ID,
-            relationshipItemId
-        );
+        }
 
-        await connectItems(
-            RELATIONSHIP_BOARD_ID,
-            relationshipItemId,
-            RELATIONSHIP_CONNECT_COLUMN_ID,
-            meetingItemId
-        );
+        if (DRY_RUN) {
 
-        console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
+            console.log("🧪 DRY RUN - would connect meeting", meetingItemId, "to relationship item", relationshipItemId);
+
+        } else {
+
+            await connectItems(
+                MEETINGS_BOARD_ID,
+                meetingItemId,
+                MEETINGS_CONNECT_COLUMN_ID,
+                relationshipItemId
+            );
+
+            await connectItems(
+                RELATIONSHIP_BOARD_ID,
+                relationshipItemId,
+                RELATIONSHIP_CONNECT_COLUMN_ID,
+                meetingItemId
+            );
+
+            console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
+
+        }
 
         const startDateTime = buildStartDateTime(event);
 
-        if (startDateTime && MEETINGS_CALENDAR_LINK_COLUMN) {
+        if (startDateTime && MEETINGS_CALENDAR_LINK_COLUMN && !DRY_RUN) {
 
             const matchedEvent = await findMatchingCalendarEvent({
                 title: event.pulseName,
@@ -229,10 +233,7 @@ async function processMeetingWebhook(req) {
 
                 console.log("✅ Calendar link saved to Monday item");
 
-                // Point the link added to the Calendar event at the
-                // connected Relationship item (the client record), not
-                // the Meetings item itself.
-                const mondayItemUrl = `https://${MONDAY_ACCOUNT_SUBDOMAIN}.monday.com/boards/${RELATIONSHIP_BOARD_ID}/pulses/${relationshipItemId}`;
+                const mondayItemUrl = `https://${MONDAY_ACCOUNT_SUBDOMAIN}.monday.com/boards/${MEETINGS_BOARD_ID}/pulses/${meetingItemId}`;
                 await addMondayLinkToEvent(matchedEvent.eventId, mondayItemUrl);
 
             } else {
@@ -240,6 +241,10 @@ async function processMeetingWebhook(req) {
                 console.log("No matching Google Calendar event found for this meeting - leaving link column empty.");
 
             }
+
+        } else if (DRY_RUN) {
+
+            console.log("🧪 DRY RUN - skipping calendar search/write entirely.");
 
         } else {
 
