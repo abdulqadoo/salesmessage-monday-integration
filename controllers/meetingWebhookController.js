@@ -1,5 +1,4 @@
-const { searchByEmail, createItemWithEmail, connectItems, getItem, updateColumnValues } = require("../services/mondayService");
-const { findMatchingCalendarEvent, addMondayLinkToEvent } = require("../services/calendarService");
+const { searchByEmail, createItemWithEmail, connectItems, getItem } = require("../services/mondayService");
 
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
@@ -9,51 +8,66 @@ const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_PHONE_COLUMN_ID = process.env.MEETINGS_PHONE_COLUMN_ID;
 const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
 const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_ID;
-const MEETINGS_DATE_COLUMN_ID = process.env.MEETINGS_DATE_COLUMN_ID || "date_mm3ybgbv";
-const MEETINGS_CALENDAR_LINK_COLUMN = process.env.MEETINGS_CALENDAR_LINK_COLUMN;
-const MONDAY_ACCOUNT_SUBDOMAIN = process.env.MONDAY_ACCOUNT_SUBDOMAIN || "YOUR-MONDAY-SUBDOMAIN";
-const DRY_RUN = process.env.DRY_RUN === "true";
 
+// Duplicate protection - survives across retries and duplicate webhook fires
+// within the same running process
 const processedMeetings = new Set();
 
 
-function extractClientName(meetingTitle) {
+// =====================================
+// YOUR TEAM'S OWN EMAIL DOMAIN
+// Any email ending in this domain is treated as internal, never a client.
+// =====================================
+const INTERNAL_EMAIL_DOMAIN = "valuebuildersgroup.com";
 
-    if (!meetingTitle) {
-        return meetingTitle;
-    }
 
-    const parts = meetingTitle.split(/\s+and\s+/i);
+// =====================================
+// SPECIFIC INTERNAL ADDRESSES ON OUTSIDE DOMAINS
+// Some team/staff use personal email addresses (e.g. Gmail) instead of
+// the company domain — domain filtering alone can't catch these, so they
+// need to be listed explicitly. Add any other staff personal emails here.
+// =====================================
+const INTERNAL_EMAILS = [
+    "ashonfire@gmail.com"
+];
 
-    if (parts.length > 1) {
-        return parts[parts.length - 1].trim();
-    }
 
-    return meetingTitle.trim();
+function isInternalEmail(email) {
+
+    const lower = email.toLowerCase();
+
+    return lower.endsWith(`@${INTERNAL_EMAIL_DOMAIN}`) ||
+        INTERNAL_EMAILS.includes(lower);
 
 }
 
 
-function extractClientEmail(rawEmailField) {
+// =====================================
+// EXTRACT ALL EMAILS FROM THE FIELD, REGARDLESS OF SEPARATOR
+// Handles space-separated, semicolon-separated, or comma-separated lists,
+// and single emails, all with one regex.
+// e.g. "ash@valuebuildersgroup.com gorayasaqib688@gmail.com" -> both emails
+// =====================================
+function extractAllEmails(rawEmailField) {
 
     if (!rawEmailField) {
-        return null;
+        return [];
     }
 
-    const emails = rawEmailField
-        .split(";")
-        .map(e => e.trim())
-        .filter(Boolean);
+    const matches = rawEmailField.match(/[^\s;,]+@[^\s;,]+\.[^\s;,]+/g);
 
-    if (emails.length >= 2) {
-        return emails[1];
-    }
-
-    return emails[0] || null;
+    return matches ? matches.map(e => e.trim()) : [];
 
 }
 
 
+// =====================================
+// EXTRACT PHONE NUMBER FROM FREE-FORM CALENDAR TEXT
+// e.g. "Ash to call 6506607551\nPlease provide your address..." -> "+16506607551"
+// Deliberately looks for a 10-digit (or 11-digit w/ leading 1) run of digits,
+// with optional separators, so it doesn't accidentally grab a zip code (5 digits)
+// or digits embedded inside URLs/tokens (mixed alphanumeric, won't match).
+// =====================================
 function extractPhoneFromText(rawText) {
 
     if (!rawText) {
@@ -78,26 +92,16 @@ function extractPhoneFromText(rawText) {
         return `+${digits}`;
     }
 
+    // Unexpected length — return raw digits rather than silently drop it,
+    // so it's still visible/reviewable on the board instead of vanishing.
     return digits;
 
 }
 
 
-function buildStartDateTime(event) {
-
-    const dateInfo = event.columnValues?.[MEETINGS_DATE_COLUMN_ID];
-
-    if (!dateInfo?.date) {
-        return null;
-    }
-
-    const time = dateInfo.time || "00:00:00";
-
-    return `${dateInfo.date}T${time}`;
-
-}
-
-
+// =====================================
+// ACTUAL PROCESSING LOGIC (runs after we've already responded to Monday)
+// =====================================
 async function processMeetingWebhook(req) {
 
     try {
@@ -126,32 +130,55 @@ async function processMeetingWebhook(req) {
         processedMeetings.add(meetingItemId);
 
         const rawEmail = event.columnValues?.[MEETINGS_EMAIL_COLUMN_ID]?.value;
-        const email = extractClientEmail(rawEmail);
+        const allEmails = extractAllEmails(rawEmail);
 
-        console.log("Raw email field:", rawEmail, "-> Using:", email);
+        // Drop your own team's email(s) entirely — never search or store these,
+        // regardless of how many emails are on the meeting (2, 4, 5, whatever).
+        const clientEmails = allEmails.filter(e => !isInternalEmail(e));
 
-        if (!email) {
-            console.log("No email found on meeting item, skipping.");
+        console.log("Raw email field:", rawEmail, "-> All emails:", allEmails, "-> Client emails only:", clientEmails);
+
+        if (clientEmails.length === 0) {
+            console.log("No client (non-internal) email found on meeting item, skipping.");
             return;
         }
 
-        const matches = await searchByEmail(
-            RELATIONSHIP_BOARD_ID,
-            RELATIONSHIP_EMAIL_COLUMN_ID,
-            email
-        );
+        // Check each CLIENT email against the Relationship board, in order.
+        // First one that matches an existing item wins.
+        let relationshipItemId = null;
+        let matchedEmail = null;
 
-        let relationshipItemId;
+        for (const candidateEmail of clientEmails) {
 
-        if (matches.length > 0) {
+            const matches = await searchByEmail(
+                RELATIONSHIP_BOARD_ID,
+                RELATIONSHIP_EMAIL_COLUMN_ID,
+                candidateEmail
+            );
 
-            relationshipItemId = matches[0].id;
-            console.log("Found existing Relationship item:", relationshipItemId);
+            if (matches.length > 0) {
+                relationshipItemId = matches[0].id;
+                matchedEmail = candidateEmail;
+                break;
+            }
+
+        }
+
+        if (relationshipItemId) {
+
+            console.log(`Found existing Relationship item (matched on ${matchedEmail}):`, relationshipItemId);
 
         } else {
 
-            const meetingItem = DRY_RUN ? null : await getItem(meetingItemId);
-            const clientName = extractClientName(meetingItem?.name || event.pulseName);
+            // Use the FIRST client email only — this is the one and only
+            // email that gets written to the new Relationship item.
+            const emailToUse = clientEmails[0];
+
+            const meetingItem = await getItem(meetingItemId);
+
+            // Use the exact same name as the meeting item — no reformatting —
+            // so both boards show a matching title.
+            const itemName = meetingItem?.name || event.pulseName;
 
             const rawPhoneText =
                 event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
@@ -159,98 +186,40 @@ async function processMeetingWebhook(req) {
 
             const phone = extractPhoneFromText(rawPhoneText);
 
-            console.log("No match found. Extracted client name:", clientName);
+            console.log("No match found for any client email. Using:", emailToUse);
+            console.log("Using item name:", itemName);
             console.log("Raw phone field:", rawPhoneText, "-> Extracted phone:", phone);
 
-            if (DRY_RUN) {
-
-                console.log("🧪 DRY RUN - would create Relationship item with:", {
-                    clientName,
-                    email,
-                    phone
-                });
-
-                relationshipItemId = "DRY_RUN_FAKE_ID";
-
-            } else {
-
-                const newItem = await createItemWithEmail(
-                    RELATIONSHIP_BOARD_ID,
-                    RELATIONSHIP_EMAIL_COLUMN_ID,
-                    clientName,
-                    email,
-                    RELATIONSHIP_PHONE_COLUMN_ID,
-                    phone
-                );
-
-                relationshipItemId = newItem.id;
-
-            }
-
-        }
-
-        if (DRY_RUN) {
-
-            console.log("🧪 DRY RUN - would connect meeting", meetingItemId, "to relationship item", relationshipItemId);
-
-        } else {
-
-            await connectItems(
-                MEETINGS_BOARD_ID,
-                meetingItemId,
-                MEETINGS_CONNECT_COLUMN_ID,
-                relationshipItemId
-            );
-
-            await connectItems(
+            const newItem = await createItemWithEmail(
                 RELATIONSHIP_BOARD_ID,
-                relationshipItemId,
-                RELATIONSHIP_CONNECT_COLUMN_ID,
-                meetingItemId
+                RELATIONSHIP_EMAIL_COLUMN_ID,
+                itemName,
+                emailToUse,
+                RELATIONSHIP_PHONE_COLUMN_ID,
+                phone
             );
 
-            console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
+            relationshipItemId = newItem.id;
 
         }
 
-        const startDateTime = buildStartDateTime(event);
+        // Connect Meetings item -> Relationship item
+        await connectItems(
+            MEETINGS_BOARD_ID,
+            meetingItemId,
+            MEETINGS_CONNECT_COLUMN_ID,
+            relationshipItemId
+        );
 
-        if (startDateTime && MEETINGS_CALENDAR_LINK_COLUMN && !DRY_RUN) {
+        // Connect Relationship item -> Meetings item (explicit, don't rely on two-way auto-sync)
+        await connectItems(
+            RELATIONSHIP_BOARD_ID,
+            relationshipItemId,
+            RELATIONSHIP_CONNECT_COLUMN_ID,
+            meetingItemId
+        );
 
-            const matchedEvent = await findMatchingCalendarEvent({
-                title: event.pulseName,
-                startDateTime
-            });
-
-            if (matchedEvent) {
-
-                await updateColumnValues(MEETINGS_BOARD_ID, meetingItemId, {
-                    [MEETINGS_CALENDAR_LINK_COLUMN]: {
-                        url: matchedEvent.htmlLink,
-                        text: "Open in Google Calendar"
-                    }
-                });
-
-                console.log("✅ Calendar link saved to Monday item");
-
-                const mondayItemUrl = `https://${MONDAY_ACCOUNT_SUBDOMAIN}.monday.com/boards/${MEETINGS_BOARD_ID}/pulses/${meetingItemId}`;
-                await addMondayLinkToEvent(matchedEvent.eventId, mondayItemUrl);
-
-            } else {
-
-                console.log("No matching Google Calendar event found for this meeting - leaving link column empty.");
-
-            }
-
-        } else if (DRY_RUN) {
-
-            console.log("🧪 DRY RUN - skipping calendar search/write entirely.");
-
-        } else {
-
-            console.log("Could not build a start time from meeting item, or link column not configured - skipping calendar search.");
-
-        }
+        console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
 
     } catch (err) {
 
