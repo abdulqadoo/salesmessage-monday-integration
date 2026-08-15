@@ -3,6 +3,7 @@ const { searchByEmail, createItemWithEmail, connectItems, getItem, updateColumnV
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
 const RELATIONSHIP_PHONE_COLUMN_ID = process.env.PHONE_COLUMN;
+const RELATIONSHIP_STATUS_COLUMN_ID = process.env.RELATIONSHIP_STATUS_COLUMN_ID || "color_mm3hgyby";
 const MEETINGS_STATUS_COLUMN_ID = process.env.MEETINGS_STATUS_COLUMN_ID || "color_mm3y8n81";
 const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
 const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
@@ -263,6 +264,14 @@ async function processMeetingWebhook(req) {
             relationshipItemId = newItem.id;
 
         }
+
+        // Set the Relationship item's status to "Discovery" whether it was
+        // just created or already existed and we're linking to it.
+        await updateColumnValues(RELATIONSHIP_BOARD_ID, relationshipItemId, {
+            [RELATIONSHIP_STATUS_COLUMN_ID]: { label: "Discovery" }
+        });
+
+        console.log("✅ Status set to Discovery on relationship item", relationshipItemId);
 
         // Determine status from the meeting's name + notes (keywords like
         // "Online", a Zoom/Meet link, "Call", or "Site Visit"). If nothing
