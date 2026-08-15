@@ -664,8 +664,12 @@ async function createItemWithEmail(boardId, emailColumnId, name, email, phoneCol
     }
 
 }
+
 // =====================================
-// UPDATE MULTIPLE COLUMN VALUES (generic)
+// UPDATE ONE OR MORE COLUMN VALUES ON AN EXISTING ITEM
+// columnValuesObject is a plain object like:
+// { color_mm3hgyby: { label: "Discovery" } }
+// or for simple text/number columns, just a plain value.
 // =====================================
 async function updateColumnValues(boardId, itemId, columnValuesObject) {
 
@@ -688,43 +692,25 @@ async function updateColumnValues(boardId, itemId, columnValuesObject) {
     };
 
     try {
+
         const response = await monday.post("", { query: mutation, variables });
-        if (response.data.errors) throw new Error(JSON.stringify(response.data.errors));
+
+        console.log("====== UPDATE COLUMN VALUES RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        if (response.data.errors) {
+            throw new Error(JSON.stringify(response.data.errors));
+        }
+
         return response.data.data.change_multiple_column_values;
+
     } catch (error) {
+
+        console.log("====== UPDATE COLUMN VALUES ERROR ======");
         console.log(error.response?.data || error.message);
         throw error;
+
     }
-
-}
-async function renameItem(itemId, newName) {
-
-    const query = `
-        mutation ($itemId: ID!, $boardId: ID!, $newName: String!) {
-            change_simple_column_value(
-                item_id: $itemId,
-                board_id: $boardId,
-                column_id: "name",
-                value: $newName
-            ) {
-                id
-            }
-        }
-    `;
-
-    const response = await monday.post("", {
-        query,
-        variables: {
-            itemId,
-            boardId: process.env.INVOICES_BOARD_ID,
-            newName
-        }
-    });
-
-    console.log("====== RENAME RESPONSE ======");
-    console.log(JSON.stringify(response.data, null, 2));
-
-    return response.data;
 
 }
 
@@ -743,6 +729,5 @@ module.exports = {
     createSmsTimelineItem,
     searchByEmail,
     createItemWithEmail,
-    updateColumnValues,
-    renameItem
+    updateColumnValues
 };

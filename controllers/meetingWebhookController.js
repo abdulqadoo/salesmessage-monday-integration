@@ -129,7 +129,9 @@ function extractPhoneFromText(rawText) {
 //      Google Meet link is present anywhere in the name or notes
 //   2. Call Booked     — item name contains "Call"
 //   3. Site Visit Booked — item name contains "Site Visit"
-// Falls back to "Discovery" if none of the above match.
+// Returns null if none match — caller should leave the status column
+// untouched in that case, since there is no valid "default" label on
+// this column (it does NOT have a "Discovery" option).
 // =====================================
 function determineMeetingStatus(itemName, notesText) {
 
@@ -150,7 +152,7 @@ function determineMeetingStatus(itemName, notesText) {
         return "Site Visit Booked";
     }
 
-    return "Discovery";
+    return null;
 
 }
 
@@ -263,16 +265,24 @@ async function processMeetingWebhook(req) {
         }
 
         // Determine status from the meeting's name + notes (keywords like
-        // "Online", a Zoom/Meet link, "Call", or "Site Visit"), falling
-        // back to "Discovery" if none apply. This gets written to the
-        // MEETINGS board item (this describes the meeting itself).
+        // "Online", a Zoom/Meet link, "Call", or "Site Visit"). If nothing
+        // matches, leave the status column untouched — there is no valid
+        // "default" option on this column to fall back to.
         const meetingStatus = determineMeetingStatus(event.pulseName, rawNotesText);
 
-        await updateColumnValues(MEETINGS_BOARD_ID, meetingItemId, {
-            [MEETINGS_STATUS_COLUMN_ID]: { label: meetingStatus }
-        });
+        if (meetingStatus) {
 
-        console.log(`✅ Status set to "${meetingStatus}" on meeting item`, meetingItemId);
+            await updateColumnValues(MEETINGS_BOARD_ID, meetingItemId, {
+                [MEETINGS_STATUS_COLUMN_ID]: { label: meetingStatus }
+            });
+
+            console.log(`✅ Status set to "${meetingStatus}" on meeting item`, meetingItemId);
+
+        } else {
+
+            console.log("No status keyword matched - leaving status column untouched on meeting item", meetingItemId);
+
+        }
 
         // Connect Meetings item -> Relationship item
         await connectItems(
