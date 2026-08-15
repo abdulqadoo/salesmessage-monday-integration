@@ -1,8 +1,9 @@
-const { searchByEmail, createItemWithEmail, connectItems, getItem } = require("../services/mondayService");
+const { searchByEmail, createItemWithEmail, connectItems, getItem, updateColumnValues } = require("../services/mondayService");
 
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
 const RELATIONSHIP_PHONE_COLUMN_ID = process.env.PHONE_COLUMN;
+const MEETINGS_STATUS_COLUMN_ID = process.env.MEETINGS_STATUS_COLUMN_ID || "color_mm3y8n81";
 const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
 const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_PHONE_COLUMN_ID = process.env.MEETINGS_PHONE_COLUMN_ID;
@@ -38,6 +39,28 @@ function isInternalEmail(email) {
 
     return lower.endsWith(`@${INTERNAL_EMAIL_DOMAIN}`) ||
         INTERNAL_EMAILS.includes(lower);
+
+}
+
+
+// =====================================
+// EXTRACT CLIENT NAME FROM MEETING TITLE
+// e.g. "Ash Berkowitz and Jennifer Gardner" -> "Jennifer Gardner"
+// If there's no "and" in the title, the whole title is used as-is.
+// =====================================
+function extractClientName(meetingTitle) {
+
+    if (!meetingTitle) {
+        return meetingTitle;
+    }
+
+    const parts = meetingTitle.split(/\s+and\s+/i);
+
+    if (parts.length > 1) {
+        return parts[parts.length - 1].trim();
+    }
+
+    return meetingTitle.trim();
 
 }
 
@@ -95,6 +118,39 @@ function extractPhoneFromText(rawText) {
     // Unexpected length — return raw digits rather than silently drop it,
     // so it's still visible/reviewable on the board instead of vanishing.
     return digits;
+
+}
+
+
+// =====================================
+// DETERMINE MEETING STATUS FROM NAME + NOTES
+// Checked in priority order:
+//   1. Online Meeting  — "online"/"online meeting" mentioned, OR a Zoom/
+//      Google Meet link is present anywhere in the name or notes
+//   2. Call Booked     — item name contains "Call"
+//   3. Site Visit Booked — item name contains "Site Visit"
+// Falls back to "Discovery" if none of the above match.
+// =====================================
+function determineMeetingStatus(itemName, notesText) {
+
+    const combined = `${itemName || ""} ${notesText || ""}`.toLowerCase();
+
+    const hasOnlineKeyword = /\bonline meeting\b/.test(combined) || /\bonline\b/.test(combined);
+    const hasMeetingLink = combined.includes("zoom.us") || combined.includes("meet.google.com");
+
+    if (hasOnlineKeyword || hasMeetingLink) {
+        return "Online Meeting";
+    }
+
+    if (/\bcall\b/.test(combined)) {
+        return "Call Booked";
+    }
+
+    if (/\bsite visit\b/.test(combined)) {
+        return "Site Visit Booked";
+    }
+
+    return "Discovery";
 
 }
 
@@ -164,6 +220,13 @@ async function processMeetingWebhook(req) {
 
         }
 
+        // Read the meeting's long-text/notes field once, up front — used for
+        // both phone extraction and status keyword matching, regardless of
+        // whether we end up creating a new item or linking an existing one.
+        const rawNotesText =
+            event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
+            event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.value;
+
         if (relationshipItemId) {
 
             console.log(`Found existing Relationship item (matched on ${matchedEmail}):`, relationshipItemId);
@@ -176,19 +239,15 @@ async function processMeetingWebhook(req) {
 
             const meetingItem = await getItem(meetingItemId);
 
-            // Use the exact same name as the meeting item — no reformatting —
-            // so both boards show a matching title.
-            const itemName = meetingItem?.name || event.pulseName;
+            // Use the exact same name as the meeting item, but if it's in
+            // "Person A and Person B" format, only keep the second name.
+            const itemName = extractClientName(meetingItem?.name || event.pulseName);
 
-            const rawPhoneText =
-                event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
-                event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.value;
-
-            const phone = extractPhoneFromText(rawPhoneText);
+            const phone = extractPhoneFromText(rawNotesText);
 
             console.log("No match found for any client email. Using:", emailToUse);
             console.log("Using item name:", itemName);
-            console.log("Raw phone field:", rawPhoneText, "-> Extracted phone:", phone);
+            console.log("Raw phone field:", rawNotesText, "-> Extracted phone:", phone);
 
             const newItem = await createItemWithEmail(
                 RELATIONSHIP_BOARD_ID,
@@ -202,6 +261,18 @@ async function processMeetingWebhook(req) {
             relationshipItemId = newItem.id;
 
         }
+
+        // Determine status from the meeting's name + notes (keywords like
+        // "Online", a Zoom/Meet link, "Call", or "Site Visit"), falling
+        // back to "Discovery" if none apply. This gets written to the
+        // MEETINGS board item (this describes the meeting itself).
+        const meetingStatus = determineMeetingStatus(event.pulseName, rawNotesText);
+
+        await updateColumnValues(MEETINGS_BOARD_ID, meetingItemId, {
+            [MEETINGS_STATUS_COLUMN_ID]: { label: meetingStatus }
+        });
+
+        console.log(`✅ Status set to "${meetingStatus}" on meeting item`, meetingItemId);
 
         // Connect Meetings item -> Relationship item
         await connectItems(
