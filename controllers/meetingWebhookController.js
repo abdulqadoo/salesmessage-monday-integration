@@ -1,4 +1,3 @@
-const { searchByEmail, createItemWithEmail, connectItems, getItem, updateColumnValues } = require("../services/mondayService");
 
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
