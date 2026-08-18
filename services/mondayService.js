@@ -713,6 +713,27 @@ async function updateColumnValues(boardId, itemId, columnValuesObject) {
     }
 
 }
+async function deleteItem(itemId) {
+
+    const query = `
+        mutation ($itemId: ID!) {
+            delete_item(item_id: $itemId) {
+                id
+            }
+        }
+    `;
+
+    const response = await monday.post("", {
+        query,
+        variables: { itemId }
+    });
+
+    console.log("====== DELETE ITEM RESPONSE ======");
+    console.log(JSON.stringify(response.data, null, 2));
+
+    return response.data;
+
+}
 
 module.exports = {
     searchByPhone,

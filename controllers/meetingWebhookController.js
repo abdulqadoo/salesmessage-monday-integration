@@ -10,7 +10,7 @@ const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_PHONE_COLUMN_ID = process.env.MEETINGS_PHONE_COLUMN_ID;
 const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
 const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_ID;
-
+const { searchByEmail, searchByPhone, createItemWithEmail, connectItems, getItem, updateColumnValues, deleteItem } = require("../services/mondayService");
 // Duplicate protection - survives across retries and duplicate webhook fires
 // within the same running process
 const processedMeetings = new Set();
@@ -201,7 +201,40 @@ async function processMeetingWebhook(req) {
             console.log("No client (non-internal) email found on meeting item, skipping.");
             return;
         }
+const rawPhoneTextForCleanup =
+    event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
+    event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.value;
 
+const phoneForCleanup = extractPhoneFromText(rawPhoneTextForCleanup);
+
+if (phoneForCleanup) {
+
+    const phoneMatches = await searchByPhone(
+        RELATIONSHIP_BOARD_ID,
+        RELATIONSHIP_PHONE_COLUMN_ID,
+        phoneForCleanup
+    );
+
+    for (const duplicate of phoneMatches) {
+
+        const hasEmail = duplicate.column_values?.find(
+            cv => cv.id === RELATIONSHIP_EMAIL_COLUMN_ID
+        )?.text;
+
+        if (!hasEmail) {
+
+            console.log("🗑️ Deleting spam/duplicate phone-only item:", duplicate.id);
+            await deleteItem(duplicate.id);
+
+        } else {
+
+            console.log("Phone match found but has an email on file, leaving it alone:", duplicate.id);
+
+        }
+
+    }
+
+}
         // Check each CLIENT email against the Relationship board, in order.
         // First one that matches an existing item wins.
         let relationshipItemId = null;
