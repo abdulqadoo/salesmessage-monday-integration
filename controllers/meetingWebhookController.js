@@ -196,10 +196,10 @@ async function processMeetingWebhook(req) {
 
         console.log("Raw email field:", rawEmail, "-> All emails:", allEmails, "-> Client emails only:", clientEmails);
 
-        if (clientEmails.length === 0) {
-            console.log("No client (non-internal) email found on meeting item, skipping.");
-            return;
-        }
+       if (clientEmails.length === 0 && !phone) {
+    console.log("No client email or phone found on meeting item, skipping.");
+    return;
+}
 const rawPhoneTextForCleanup =
     event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
     event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.value;
