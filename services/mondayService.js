@@ -519,7 +519,6 @@ async function getItem(itemId) {
 
 }
 // =====================================
-// =====================================
 // CREATE SMS TIMELINE ENTRY (Emails & Activities)
 // =====================================
 async function createSmsTimelineItem(itemId, title, content) {
@@ -667,9 +666,6 @@ async function createItemWithEmail(boardId, emailColumnId, name, email, phoneCol
 
 // =====================================
 // UPDATE ONE OR MORE COLUMN VALUES ON AN EXISTING ITEM
-// columnValuesObject is a plain object like:
-// { color_mm3hgyby: { label: "Discovery" } }
-// or for simple text/number columns, just a plain value.
 // =====================================
 async function updateColumnValues(boardId, itemId, columnValuesObject) {
 
@@ -713,9 +709,64 @@ async function updateColumnValues(boardId, itemId, columnValuesObject) {
     }
 
 }
-async function deleteItem(itemId) {
+
+// =====================================
+// SEARCH RELATIONSHIP BOARD BY PHONE (with email check, for cleanup)
+// Returns items with their email column's text included, so callers can
+// tell a phone-only spam item apart from a real contact that just also
+// happens to share this phone number.
+// =====================================
+async function searchByPhoneForCleanup(boardId, phoneColumnId, emailColumnId, phone) {
 
     const query = `
+        query {
+            items_page_by_column_values(
+                board_id: ${boardId},
+                columns: [{
+                    column_id: "${phoneColumnId}",
+                    column_values: ["${phone}"]
+                }]
+            ) {
+                items {
+                    id
+                    name
+                    column_values(ids: ["${emailColumnId}"]) {
+                        id
+                        text
+                    }
+                }
+            }
+        }
+    `;
+
+    try {
+
+        const response = await monday.post("", { query });
+
+        if (response.data.errors) {
+            console.log("====== SEARCH BY PHONE (CLEANUP) ERROR ======");
+            console.log(JSON.stringify(response.data.errors, null, 2));
+            return [];
+        }
+
+        return response.data.data.items_page_by_column_values.items;
+
+    } catch (error) {
+
+        console.log("====== SEARCH BY PHONE (CLEANUP) ERROR ======");
+        console.log(error.response?.data || error.message);
+        return [];
+
+    }
+
+}
+
+// =====================================
+// DELETE AN ITEM
+// =====================================
+async function deleteItem(itemId) {
+
+    const mutation = `
         mutation ($itemId: ID!) {
             delete_item(item_id: $itemId) {
                 id
@@ -723,15 +774,30 @@ async function deleteItem(itemId) {
         }
     `;
 
-    const response = await monday.post("", {
-        query,
-        variables: { itemId }
-    });
+    const variables = {
+        itemId: String(itemId)
+    };
 
-    console.log("====== DELETE ITEM RESPONSE ======");
-    console.log(JSON.stringify(response.data, null, 2));
+    try {
 
-    return response.data;
+        const response = await monday.post("", { query: mutation, variables });
+
+        console.log("====== DELETE ITEM RESPONSE ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        if (response.data.errors) {
+            throw new Error(JSON.stringify(response.data.errors));
+        }
+
+        return response.data.data.delete_item;
+
+    } catch (error) {
+
+        console.log("====== DELETE ITEM ERROR ======");
+        console.log(error.response?.data || error.message);
+        throw error;
+
+    }
 
 }
 
@@ -750,5 +816,7 @@ module.exports = {
     createSmsTimelineItem,
     searchByEmail,
     createItemWithEmail,
-    updateColumnValues
+    updateColumnValues,
+    searchByPhoneForCleanup,
+    deleteItem
 };
