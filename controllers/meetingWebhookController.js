@@ -1,4 +1,5 @@
 const { searchByEmail, createItemWithEmail, connectItems, getItem, updateColumnValues, searchByPhoneForCleanup, deleteItem } = require("../services/mondayService");
+const { findMatchingCalendarEvent, addMondayLinkToEvent } = require("../services/calendarService");
 
 const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
@@ -10,6 +11,9 @@ const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_PHONE_COLUMN_ID = process.env.MEETINGS_PHONE_COLUMN_ID;
 const MEETINGS_CONNECT_COLUMN_ID = process.env.MEETINGS_CONNECT_COLUMN_ID;
 const RELATIONSHIP_CONNECT_COLUMN_ID = process.env.RELATIONSHIP_CONNECT_COLUMN_ID;
+const MEETINGS_DATE_COLUMN_ID = process.env.MEETINGS_DATE_COLUMN_ID || "date_mm3ybgbv";
+const MEETINGS_CALENDAR_LINK_COLUMN = process.env.MEETINGS_CALENDAR_LINK_COLUMN;
+const MONDAY_ACCOUNT_SUBDOMAIN = process.env.MONDAY_ACCOUNT_SUBDOMAIN || "YOUR-MONDAY-SUBDOMAIN";
 
 // Duplicate protection - survives across retries and duplicate webhook fires
 // within the same running process
@@ -124,10 +128,25 @@ function determineMeetingStatus(itemName, notesText) {
 }
 
 
+function buildStartDateTime(event) {
+
+    const dateInfo = event.columnValues?.[MEETINGS_DATE_COLUMN_ID];
+
+    if (!dateInfo?.date) {
+        return null;
+    }
+
+    const time = dateInfo.time || "00:00:00";
+
+    return `${dateInfo.date}T${time}`;
+
+}
+
+
 // =====================================
 // DELETE ANY PHONE-ONLY SPAM/DUPLICATE ITEMS ON THE RELATIONSHIP BOARD
 // THAT MATCH THIS PHONE NUMBER. Runs independently, every time, regardless
-// of whether the email search above found/created anything. Only deletes
+// of whether the email search below found/created anything. Only deletes
 // items that have NO email on file — never touches a real contact record.
 // =====================================
 async function cleanupPhoneOnlyDuplicates(phone) {
@@ -193,8 +212,8 @@ async function processMeetingWebhook(req) {
 
         processedMeetings.add(meetingItemId);
 
-        // Read notes/phone text up front - needed for cleanup regardless of
-        // whether a valid client email is found below.
+        // Read notes/phone text up front - needed for cleanup, status
+        // determination, and (if a new item is created) the phone field.
         const rawNotesText =
             event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
             event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.value;
@@ -301,6 +320,47 @@ async function processMeetingWebhook(req) {
         );
 
         console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
+
+        // =====================================
+        // GOOGLE CALENDAR LINK-BACK
+        // Find the matching Google Calendar event for this meeting, save
+        // its link on the Monday item, and write the Monday item's link
+        // back into the Calendar event's description.
+        // =====================================
+        const startDateTime = buildStartDateTime(event);
+
+        if (startDateTime && MEETINGS_CALENDAR_LINK_COLUMN) {
+
+            const matchedEvent = await findMatchingCalendarEvent({
+                title: event.pulseName,
+                startDateTime
+            });
+
+            if (matchedEvent) {
+
+                await updateColumnValues(MEETINGS_BOARD_ID, meetingItemId, {
+                    [MEETINGS_CALENDAR_LINK_COLUMN]: {
+                        url: matchedEvent.htmlLink,
+                        text: "Open in Google Calendar"
+                    }
+                });
+
+                console.log("✅ Calendar link saved to Monday item");
+
+                const mondayItemUrl = `https://${MONDAY_ACCOUNT_SUBDOMAIN}.monday.com/boards/${MEETINGS_BOARD_ID}/pulses/${meetingItemId}`;
+                await addMondayLinkToEvent(matchedEvent.eventId, mondayItemUrl);
+
+            } else {
+
+                console.log("No matching Google Calendar event found for this meeting - leaving link column empty.");
+
+            }
+
+        } else {
+
+            console.log("Could not build a start time from meeting item, or link column not configured - skipping calendar search.");
+
+        }
 
     } catch (err) {
 
