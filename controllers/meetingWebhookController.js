@@ -17,21 +17,19 @@ const MEETINGS_DATE_COLUMN_ID = process.env.MEETINGS_DATE_COLUMN_ID || "date_mm3
 const MEETINGS_CALENDAR_LINK_COLUMN = process.env.MEETINGS_CALENDAR_LINK_COLUMN;
 const MONDAY_ACCOUNT_SUBDOMAIN = process.env.MONDAY_ACCOUNT_SUBDOMAIN || "YOUR-MONDAY-SUBDOMAIN";
 
-// Duplicate protection - survives across retries and duplicate webhook fires
-// within the same running process
+// NEW: Action Status sync (Meetings status -> Relationship Action Status)
+const RELATIONSHIP_ACTION_STATUS_COLUMN_ID = process.env.RELATIONSHIP_ACTION_STATUS_COLUMN_ID || "color_mm2w2gr8";
+const MEETINGS_TO_ACTION_STATUS_MAP = {
+    "Call Booked": "Booked Call",
+    "Online Meeting": "Booked Online Meeting"
+};
+
 const processedMeetings = new Set();
 
 
-// =====================================
-// YOUR TEAM'S OWN EMAIL DOMAIN
-// Any email ending in this domain is treated as internal, never a client.
-// =====================================
 const INTERNAL_EMAIL_DOMAIN = "valuebuildersgroup.com";
 
 
-// =====================================
-// SPECIFIC INTERNAL ADDRESSES ON OUTSIDE DOMAINS
-// =====================================
 const INTERNAL_EMAILS = [
     "ashonfire@gmail.com"
 ];
@@ -145,11 +143,6 @@ function buildStartDateTime(event) {
 }
 
 
-// =====================================
-// EXTRACT THE MEETING ITEM'S CREATION DATE FROM ITS "creation_log"
-// SYSTEM COLUMN (pulse_log_mm5hztt4), TO USE AS THE RELATIONSHIP
-// ITEM'S LEAD DATE.
-// =====================================
 function extractCreationDate(meetingItem) {
 
     const creationLogColumn = meetingItem?.column_values?.find(
@@ -177,7 +170,7 @@ function extractCreationDate(meetingItem) {
             return null;
         }
 
-        return date.toISOString().split("T")[0]; // "YYYY-MM-DD"
+        return date.toISOString().split("T")[0];
 
     } catch (err) {
 
@@ -189,12 +182,6 @@ function extractCreationDate(meetingItem) {
 }
 
 
-// =====================================
-// DELETE ANY PHONE-ONLY SPAM/DUPLICATE ITEMS ON THE RELATIONSHIP BOARD
-// THAT MATCH THIS PHONE NUMBER. Runs independently, every time, regardless
-// of whether the email search below found/created anything. Only deletes
-// items that have NO email on file — never touches a real contact record.
-// =====================================
 async function cleanupPhoneOnlyDuplicates(phone) {
 
     if (!phone) {
@@ -228,9 +215,12 @@ async function cleanupPhoneOnlyDuplicates(phone) {
 }
 
 
-// =====================================
-// ACTUAL PROCESSING LOGIC (runs after we've already responded to Monday)
-// =====================================
+// NEW: small delay helper, used only for the final Action Status sync step.
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
 async function processMeetingWebhook(req) {
 
     try {
@@ -258,15 +248,12 @@ async function processMeetingWebhook(req) {
 
         processedMeetings.add(meetingItemId);
 
-        // Read notes/phone text up front - needed for cleanup, status
-        // determination, and (if a new item is created) the phone field.
         const rawNotesText =
             event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.text ||
             event.columnValues?.[MEETINGS_PHONE_COLUMN_ID]?.value;
 
         const extractedPhone = extractPhoneFromText(rawNotesText);
 
-        // Independent cleanup step - runs regardless of email match outcome.
         await cleanupPhoneOnlyDuplicates(extractedPhone);
 
         const rawEmail = event.columnValues?.[MEETINGS_EMAIL_COLUMN_ID]?.value;
@@ -379,12 +366,6 @@ async function processMeetingWebhook(req) {
 
         console.log(`✅ Connected meeting ${meetingItemId} to relationship item ${relationshipItemId}`);
 
-        // =====================================
-        // GOOGLE CALENDAR LINK-BACK
-        // Find the matching Google Calendar event for this meeting, save
-        // its link on the Monday item, and write the Monday item's link
-        // back into the Calendar event's description.
-        // =====================================
         const startDateTime = buildStartDateTime(event);
 
         if (startDateTime && MEETINGS_CALENDAR_LINK_COLUMN) {
@@ -417,6 +398,34 @@ async function processMeetingWebhook(req) {
         } else {
 
             console.log("Could not build a start time from meeting item, or link column not configured - skipping calendar search.");
+
+        }
+
+        // NEW: ACTION STATUS SYNC - always the LAST step, after a short
+        // delay, so every write above has settled first.
+        await sleep(1500);
+
+        const effectiveMeetingStatus =
+            meetingStatus ||
+            event.columnValues?.[MEETINGS_STATUS_COLUMN_ID]?.label?.text ||
+            event.columnValues?.[MEETINGS_STATUS_COLUMN_ID]?.label ||
+            event.columnValues?.[MEETINGS_STATUS_COLUMN_ID]?.text;
+
+        console.log("Effective meeting status for Action Status sync:", effectiveMeetingStatus);
+
+        const mappedActionStatus = MEETINGS_TO_ACTION_STATUS_MAP[effectiveMeetingStatus];
+
+        if (mappedActionStatus) {
+
+            await updateColumnValues(RELATIONSHIP_BOARD_ID, relationshipItemId, {
+                [RELATIONSHIP_ACTION_STATUS_COLUMN_ID]: { label: mappedActionStatus }
+            });
+
+            console.log(`✅ Relationship Action Status set to "${mappedActionStatus}" (from meeting status "${effectiveMeetingStatus}")`);
+
+        } else {
+
+            console.log("Meeting status did not match a known Action Status mapping - leaving it unchanged. Value was:", effectiveMeetingStatus);
 
         }
 
