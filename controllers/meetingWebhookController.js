@@ -5,7 +5,9 @@ const RELATIONSHIP_BOARD_ID = process.env.BOARD_ID;
 const RELATIONSHIP_EMAIL_COLUMN_ID = process.env.RELATIONSHIP_EMAIL_COLUMN_ID;
 const RELATIONSHIP_PHONE_COLUMN_ID = process.env.PHONE_COLUMN;
 const RELATIONSHIP_STATUS_COLUMN_ID = process.env.RELATIONSHIP_STATUS_COLUMN_ID || "color_mm3hgyby";
+const RELATIONSHIP_LEAD_DATE_COLUMN_ID = process.env.RELATIONSHIP_LEAD_DATE_COLUMN_ID || "date_mm2wmqy8";
 const MEETINGS_STATUS_COLUMN_ID = process.env.MEETINGS_STATUS_COLUMN_ID || "color_mm3y8n81";
+const MEETINGS_CREATION_LOG_COLUMN_ID = process.env.MEETINGS_CREATION_LOG_COLUMN_ID || "pulse_log_mm5hztt4";
 const MEETINGS_BOARD_ID = process.env.MEETINGS_BOARD_ID;
 const MEETINGS_EMAIL_COLUMN_ID = process.env.MEETINGS_EMAIL_COLUMN_ID;
 const MEETINGS_PHONE_COLUMN_ID = process.env.MEETINGS_PHONE_COLUMN_ID;
@@ -144,6 +146,50 @@ function buildStartDateTime(event) {
 
 
 // =====================================
+// EXTRACT THE MEETING ITEM'S CREATION DATE FROM ITS "creation_log"
+// SYSTEM COLUMN (pulse_log_mm5hztt4), TO USE AS THE RELATIONSHIP
+// ITEM'S LEAD DATE.
+// =====================================
+function extractCreationDate(meetingItem) {
+
+    const creationLogColumn = meetingItem?.column_values?.find(
+        cv => cv.id === MEETINGS_CREATION_LOG_COLUMN_ID
+    );
+
+    if (!creationLogColumn?.value) {
+        return null;
+    }
+
+    try {
+
+        const parsed = JSON.parse(creationLogColumn.value);
+        const createdAt = parsed.created_at;
+
+        if (!createdAt) {
+            return null;
+        }
+
+        const date = isNaN(createdAt)
+            ? new Date(createdAt)
+            : new Date(Number(createdAt) * 1000);
+
+        if (isNaN(date.getTime())) {
+            return null;
+        }
+
+        return date.toISOString().split("T")[0]; // "YYYY-MM-DD"
+
+    } catch (err) {
+
+        console.log("Failed to parse creation_log column value:", err.message);
+        return null;
+
+    }
+
+}
+
+
+// =====================================
 // DELETE ANY PHONE-ONLY SPAM/DUPLICATE ITEMS ON THE RELATIONSHIP BOARD
 // THAT MATCH THIS PHONE NUMBER. Runs independently, every time, regardless
 // of whether the email search below found/created anything. Only deletes
@@ -265,10 +311,12 @@ async function processMeetingWebhook(req) {
             const meetingItem = await getItem(meetingItemId);
 
             const itemName = extractClientName(meetingItem?.name || event.pulseName);
+            const leadDate = extractCreationDate(meetingItem);
 
             console.log("No match found for any client email. Using:", emailToUse);
             console.log("Using item name:", itemName);
             console.log("Raw phone field:", rawNotesText, "-> Extracted phone:", extractedPhone);
+            console.log("Extracted lead date:", leadDate);
 
             const newItem = await createItemWithEmail(
                 RELATIONSHIP_BOARD_ID,
@@ -280,6 +328,16 @@ async function processMeetingWebhook(req) {
             );
 
             relationshipItemId = newItem.id;
+
+            if (leadDate) {
+
+                await updateColumnValues(RELATIONSHIP_BOARD_ID, relationshipItemId, {
+                    [RELATIONSHIP_LEAD_DATE_COLUMN_ID]: { date: leadDate }
+                });
+
+                console.log("✅ Lead Date set to", leadDate, "on relationship item", relationshipItemId);
+
+            }
 
         }
 
