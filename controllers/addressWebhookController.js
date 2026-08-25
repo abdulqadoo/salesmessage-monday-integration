@@ -83,13 +83,14 @@ async function processAddressWebhook(req) {
         if (event.columnId === ADDRESS_COLUMN_ID) {
 
             const newAddress =
-                event.value?.address ||
-                event.value?.value?.address ||
-                event.value?.text ||
-                "";
+    event.value?.address ||
+    event.previousValue?.address ||
+    event.value?.value?.address ||
+    event.value?.text ||
+    "";
 
-            const lat = event.value?.lat;
-            const lng = event.value?.lng;
+const lat = event.value?.lat ?? event.previousValue?.lat;
+const lng = event.value?.lng ?? event.previousValue?.lng;
 
             console.log("New address value:", newAddress, "| lat:", lat, "| lng:", lng);
 
