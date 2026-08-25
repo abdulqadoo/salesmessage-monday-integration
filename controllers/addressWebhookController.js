@@ -1,3 +1,4 @@
+
 const axios = require("axios");
 const { updateColumnValues } = require("../services/mondayService");
 
@@ -19,35 +20,35 @@ function buildGoogleEarthUrl(address, lat, lng) {
 }
 
 
+// =====================================
+// GEOCODE USING US CENSUS BUREAU (free, no key, no rate-limit blocking)
+// Works for US addresses only.
+// =====================================
 async function geocodeAddress(address) {
-
-    // Light cleanup: separate a state abbreviation stuck directly to a zip code
-    // e.g. "ca94545" -> "ca 94545"
-    const cleanedAddress = address.replace(/([a-zA-Z])(\d{5})$/, "$1 $2");
 
     try {
 
-        const response = await axios.get("https://nominatim.openstreetmap.org/search", {
-            params: {
-                q: cleanedAddress,
-                format: "json",
-                limit: 1
-            },
-            headers: {
-                "User-Agent": "salesmessage-monday-integration/1.0 (contact: your-email@example.com)"
+        const response = await axios.get(
+            "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress",
+            {
+                params: {
+                    address: address,
+                    benchmark: "Public_AR_Current",
+                    format: "json"
+                }
             }
-        });
+        );
 
-        const result = response.data?.[0];
+        const match = response.data?.result?.addressMatches?.[0];
 
-        if (!result) {
-            console.log("Nominatim returned no results for:", cleanedAddress);
+        if (!match) {
+            console.log("Census geocoder returned no results for:", address);
             return null;
         }
 
         return {
-            lat: result.lat,
-            lng: result.lon
+            lat: match.coordinates.y,
+            lng: match.coordinates.x
         };
 
     } catch (error) {
