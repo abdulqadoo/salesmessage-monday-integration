@@ -6,6 +6,7 @@ const express = require("express");
 const webhookRoutes = require("./routes/webhook");
 const taskWebhookRoutes = require("./routes/taskWebhook");
 const meetingWebhookRoutes = require("./routes/meetingWebhook");
+const textAddressWebhookRoutes = require("./routes/textAddressWebhook");
 const invoiceWebhookRoutes = require("./routes/invoiceWebhook");
 const addressWebhookRoutes = require("./routes/addressWebhook");
 
@@ -21,6 +22,12 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+
+app.use((req, res, next) => {
+    console.log(`>>> INCOMING REQUEST: ${req.method} ${req.originalUrl}`);
+    console.log(JSON.stringify(req.body, null, 2));
+    next();
+});
 
 // Webhook Routes
 app.use("/webhook", webhookRoutes);
