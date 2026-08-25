@@ -21,22 +21,27 @@ function buildGoogleEarthUrl(address, lat, lng) {
 
 async function geocodeAddress(address) {
 
+    // Light cleanup: separate a state abbreviation stuck directly to a zip code
+    // e.g. "ca94545" -> "ca 94545"
+    const cleanedAddress = address.replace(/([a-zA-Z])(\d{5})$/, "$1 $2");
+
     try {
 
         const response = await axios.get("https://nominatim.openstreetmap.org/search", {
             params: {
-                q: address,
+                q: cleanedAddress,
                 format: "json",
                 limit: 1
             },
             headers: {
-                "User-Agent": "salesmessage-monday-integration/1.0"
+                "User-Agent": "salesmessage-monday-integration/1.0 (contact: your-email@example.com)"
             }
         });
 
         const result = response.data?.[0];
 
         if (!result) {
+            console.log("Nominatim returned no results for:", cleanedAddress);
             return null;
         }
 
