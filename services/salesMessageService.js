@@ -67,6 +67,76 @@ async function getRecentAttachment() {
 
 }
 
+// ===============================
+// PHONE NORMALIZATION
+// ===============================
+function normalizePhone(phone) {
+    if (!phone) return null;
+    let digits = phone.replace(/[^\d]/g, "");
+    if (digits.length === 10) digits = "1" + digits; // assume US if 10 digits
+    return "+" + digits;
+}
+
+// ===============================
+// SEARCH CONTACT BY PHONE
+// ===============================
+async function searchContactByPhone(rawPhone) {
+
+    const phone = normalizePhone(rawPhone);
+
+    if (!phone) {
+        console.log("No phone provided to searchContactByPhone.");
+        return null;
+    }
+
+    try {
+
+        const response = await axios.get(
+            "https://api.salesmessage.com/pub/v2.3/contacts",
+            {
+                headers: {
+                    Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
+                },
+                params: { phone }
+            }
+        );
+
+        console.log("====== SALESMESSAGE CONTACT SEARCH ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        const contacts = response.data?.data || response.data;
+
+        if (!contacts || contacts.length === 0) {
+            console.log(`No SalesMessage contact found for ${phone}`);
+            return null;
+        }
+
+        const contact = Array.isArray(contacts) ? contacts[0] : contacts;
+
+        return {
+            id: contact.id,
+            phone: contact.phone || phone,
+            chatUrl: `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(contact.phone || phone)}`
+        };
+
+    } catch (error) {
+
+        console.log("====== SALESMESSAGE CONTACT SEARCH ERROR ======");
+
+        if (error.response) {
+            console.log(JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.log(error.message);
+        }
+
+        return null;
+
+    }
+
+}
+
 module.exports = {
-    getRecentAttachment
+    getRecentAttachment,
+    normalizePhone,
+    searchContactByPhone
 };

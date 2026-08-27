@@ -9,6 +9,7 @@ const meetingWebhookRoutes = require("./routes/meetingWebhook");
 const textAddressWebhookRoutes = require("./routes/textAddressWebhook");
 const invoiceWebhookRoutes = require("./routes/invoiceWebhook");
 const addressWebhookRoutes = require("./routes/addressWebhook");
+const salesMessageLinkWebhookRoutes = require("./routes/salesMessageLinkWebhook");
 
 
 const {
@@ -35,6 +36,7 @@ app.use("/monday-task-webhook", taskWebhookRoutes);
 app.use("/monday-meeting-webhook", meetingWebhookRoutes);
 app.use("/invoice-webhook", invoiceWebhookRoutes);
 app.use("/monday-address-webhook", addressWebhookRoutes);
+app.use("/salesmessage-link-webhook", salesMessageLinkWebhookRoutes);
 
 
 // ===============================
