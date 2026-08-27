@@ -15,7 +15,9 @@ function buildGoogleEarthUrl(address, lat, lng) {
 
     const formattedAddress = address.trim().replace(/\s+/g, "+");
 
-    return `https://earth.google.com/web/search/${formattedAddress}/@${lat},${lng},1000a,1000d,35y,0h,0t,0r`;
+    // Closer, angled 3D view instead of straight-down/zoomed-out:
+    // altitude ~130m, distance ~40m, tilt ~55°, slight heading rotation
+    return `https://earth.google.com/web/search/${formattedAddress}/@${lat},${lng},130a,40d,35y,10h,55t,0r`;
 
 }
 
