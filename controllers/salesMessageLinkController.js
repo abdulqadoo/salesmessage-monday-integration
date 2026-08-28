@@ -29,13 +29,20 @@ async function handleSalesMessageLinkWebhook(req, res) {
         }
 
         const item = await getItem(itemId);
-        const phoneColumn = item?.column_values?.find(c => c.id === PHONE_COLUMN_ID);
-        const phone = phoneColumn?.text;
 
-        if (!phone) {
-            console.log(`No phone value on item ${itemId}`);
-            return;
-        }
+console.log(">>> FULL ITEM RESPONSE:");
+console.log(JSON.stringify(item, null, 2));
+
+const phoneColumn = item?.column_values?.find(c => c.id === PHONE_COLUMN_ID);
+const phone = phoneColumn?.text;
+
+console.log(`>>> Phone column found: ${JSON.stringify(phoneColumn)}`);
+console.log(`>>> Extracted phone: ${phone}`);
+
+if (!phone) {
+    console.log(`No phone value on item ${itemId}`);
+    return;
+}
 
         const contact = await searchContactByPhone(phone);
 
