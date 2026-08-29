@@ -134,8 +134,56 @@ async function searchContactByPhone(rawPhone) {
 
 }
 
+// ===============================
+// GET EXISTING CONVERSATION FOR A CONTACT
+// ===============================
+async function getConversationForContact(contactId) {
+
+    try {
+
+        const response = await axios.get(
+            "https://api.salesmessage.com/pub/v2.3/conversations",
+            {
+                headers: {
+                    Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
+                },
+                params: { contact_id: contactId }
+            }
+        );
+
+        console.log("====== SALESMESSAGE CONVERSATION LOOKUP ======");
+        console.log(JSON.stringify(response.data, null, 2));
+
+        const conversations = response.data?.data || response.data;
+
+        if (!conversations || conversations.length === 0) {
+            console.log(`No conversation found for contact ${contactId}`);
+            return null;
+        }
+
+        const conversation = Array.isArray(conversations) ? conversations[0] : conversations;
+
+        return conversation.id;
+
+    } catch (error) {
+
+        console.log("====== SALESMESSAGE CONVERSATION LOOKUP ERROR ======");
+
+        if (error.response) {
+            console.log(JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.log(error.message);
+        }
+
+        return null;
+
+    }
+
+}
+
 module.exports = {
     getRecentAttachment,
     normalizePhone,
-    searchContactByPhone
+    searchContactByPhone,
+    getConversationForContact
 };

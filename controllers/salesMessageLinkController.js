@@ -1,14 +1,13 @@
 // controllers/salesMessageLinkController.js
 const { getItem, updateColumnValues } = require("../services/mondayService");
-const { normalizePhone } = require("../services/salesMessageService");
+const { normalizePhone, searchContactByPhone, getConversationForContact } = require("../services/salesMessageService");
 
 const PHONE_COLUMN_ID = "text_mm2wf3qg";
 const LINK_COLUMN_ID = "link_mm6mvvd2";
 const BOARD_ID = "18409956420";
 
 async function handleSalesMessageLinkWebhook(req, res) {
-    // Monday's one-time webhook verification handshake — can arrive as
-    // POST body { challenge } or GET query ?challenge=
+
     const challenge = req.body?.challenge || req.query?.challenge;
 
     if (challenge) {
@@ -19,7 +18,6 @@ async function handleSalesMessageLinkWebhook(req, res) {
     console.log(">>> SALESMESSAGE LINK WEBHOOK PAYLOAD:");
     console.log(JSON.stringify(req.body, null, 2));
 
-    // Respond immediately so Monday doesn't retry/timeout on a slow SalesMessage call
     res.status(200).send("ok");
 
     try {
@@ -49,7 +47,32 @@ async function handleSalesMessageLinkWebhook(req, res) {
             return;
         }
 
-        const chatUrl = `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(normalizedPhone)}`;
+        const contact = await searchContactByPhone(normalizedPhone);
+
+        let chatUrl;
+
+        if (contact?.id) {
+
+            const conversationId = await getConversationForContact(contact.id);
+
+            if (conversationId) {
+
+                chatUrl = `https://app.salesmessage.com/conversations/${conversationId}`;
+                console.log(`Found real conversation ID ${conversationId} for contact ${contact.id}`);
+
+            } else {
+
+                console.log(`No conversation found for contact ${contact.id} - falling back to phone-query link.`);
+                chatUrl = `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(normalizedPhone)}`;
+
+            }
+
+        } else {
+
+            console.log(`No SalesMessage contact found for ${normalizedPhone} - falling back to phone-query link.`);
+            chatUrl = `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(normalizedPhone)}`;
+
+        }
 
         await updateColumnValues(BOARD_ID, itemId, {
             [LINK_COLUMN_ID]: { url: chatUrl, text: "Open Chat" }
