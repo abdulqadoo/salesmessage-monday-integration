@@ -1,14 +1,19 @@
 // controllers/salesMessageLinkController.js
 const { getItem, updateColumnValues } = require("../services/mondayService");
-const { searchContactByPhone } = require("../services/salesMessageService");
+const { normalizePhone } = require("../services/salesMessageService");
 
 const PHONE_COLUMN_ID = "text_mm2wf3qg";
 const LINK_COLUMN_ID = "link_mm6mvvd2";
+const BOARD_ID = "18409956420";
 
 async function handleSalesMessageLinkWebhook(req, res) {
-    // Monday's one-time webhook verification handshake
-    if (req.body.challenge) {
-        return res.json({ challenge: req.body.challenge });
+    // Monday's one-time webhook verification handshake — can arrive as
+    // POST body { challenge } or GET query ?challenge=
+    const challenge = req.body?.challenge || req.query?.challenge;
+
+    if (challenge) {
+        console.log(">>> WEBHOOK CHALLENGE RECEIVED:", challenge);
+        return res.json({ challenge });
     }
 
     console.log(">>> SALESMESSAGE LINK WEBHOOK PAYLOAD:");
@@ -29,29 +34,28 @@ async function handleSalesMessageLinkWebhook(req, res) {
         }
 
         const item = await getItem(itemId);
-const phoneColumn = item?.column_values?.find(c => c.id === PHONE_COLUMN_ID);
-const phone = phoneColumn?.text;
+        const phoneColumn = item?.column_values?.find(c => c.id === PHONE_COLUMN_ID);
+        const phone = phoneColumn?.text;
 
-if (!phone) {
-    console.log(`No phone value on item ${itemId}`);
-    return;
-}
+        if (!phone) {
+            console.log(`No phone value on item ${itemId}`);
+            return;
+        }
 
-        const { normalizePhone } = require("../services/salesMessageService");
-const normalizedPhone = normalizePhone(phone);
+        const normalizedPhone = normalizePhone(phone);
 
-if (!normalizedPhone) {
-    console.log(`Could not normalize phone for item ${itemId}: ${phone}`);
-    return;
-}
+        if (!normalizedPhone) {
+            console.log(`Could not normalize phone for item ${itemId}: ${phone}`);
+            return;
+        }
 
-const chatUrl = `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(normalizedPhone)}`;
+        const chatUrl = `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(normalizedPhone)}`;
 
-await updateColumnValues(itemId, {
-    [LINK_COLUMN_ID]: { url: chatUrl, text: "Open Chat" }
-});
+        await updateColumnValues(BOARD_ID, itemId, {
+            [LINK_COLUMN_ID]: { url: chatUrl, text: "Open Chat" }
+        });
 
-console.log(`Updated item ${itemId} with SalesMessage link: ${chatUrl}`);
+        console.log(`Updated item ${itemId} with SalesMessage link: ${chatUrl}`);
 
     } catch (error) {
         console.log("====== SALESMESSAGE LINK WEBHOOK ERROR ======");
