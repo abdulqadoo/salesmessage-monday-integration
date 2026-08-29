@@ -70,7 +70,7 @@ function extractAllEmails(rawEmailField) {
 
     const matches = rawEmailField.match(/[^\s;,]+@[^\s;,]+\.[^\s;,]+/g);
 
-    return matches ? matches.map(e => e.trim()) : [];
+    return matches ? matches.map(e => e.trim().toLowerCase()) : [];
 
 }
 
