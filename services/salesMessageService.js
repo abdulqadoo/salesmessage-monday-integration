@@ -97,26 +97,25 @@ async function searchContactByPhone(rawPhone) {
                 headers: {
                     Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
                 },
-                params: { phone }
+                params: { search: phone }
             }
         );
 
         console.log("====== SALESMESSAGE CONTACT SEARCH ======");
         console.log(JSON.stringify(response.data, null, 2));
 
-        const contacts = response.data?.data || response.data;
+        const contacts = response.data?.data;
 
         if (!contacts || contacts.length === 0) {
             console.log(`No SalesMessage contact found for ${phone}`);
             return null;
         }
 
-        const contact = Array.isArray(contacts) ? contacts[0] : contacts;
+        const contact = contacts[0];
 
         return {
             id: contact.id,
-            phone: contact.phone || phone,
-            chatUrl: `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(contact.phone || phone)}`
+            phone: contact.number || phone
         };
 
     } catch (error) {
