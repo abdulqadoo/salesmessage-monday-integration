@@ -37,18 +37,21 @@ if (!phone) {
     return;
 }
 
-        const contact = await searchContactByPhone(phone);
+        const { normalizePhone } = require("../services/salesMessageService");
+const normalizedPhone = normalizePhone(phone);
 
-        if (!contact) {
-            console.log(`No SalesMessage contact for ${phone} — leaving link column empty`);
-            return;
-        }
+if (!normalizedPhone) {
+    console.log(`Could not normalize phone for item ${itemId}: ${phone}`);
+    return;
+}
 
-        await updateColumnValues(itemId, {
-            [LINK_COLUMN_ID]: { url: contact.chatUrl, text: "Open Chat" }
-        });
+const chatUrl = `https://app.salesmessage.com/conversations?phone=${encodeURIComponent(normalizedPhone)}`;
 
-        console.log(`Updated item ${itemId} with SalesMessage link: ${contact.chatUrl}`);
+await updateColumnValues(itemId, {
+    [LINK_COLUMN_ID]: { url: chatUrl, text: "Open Chat" }
+});
+
+console.log(`Updated item ${itemId} with SalesMessage link: ${chatUrl}`);
 
     } catch (error) {
         console.log("====== SALESMESSAGE LINK WEBHOOK ERROR ======");
