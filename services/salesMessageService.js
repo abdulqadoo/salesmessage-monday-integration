@@ -142,12 +142,11 @@ async function getConversationForContact(contactId) {
     try {
 
         const response = await axios.get(
-            "https://api.salesmessage.com/pub/v2.3/conversations",
+            `https://api.salesmessage.com/pub/v2.3/contacts/${contactId}/conversations`,
             {
                 headers: {
                     Authorization: `Bearer ${SALESMESSAGE_API_TOKEN}`
-                },
-                params: { contact_id: contactId }
+                }
             }
         );
 
