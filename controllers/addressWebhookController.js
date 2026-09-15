@@ -11,13 +11,15 @@ const LOCATION_COLUMN_ID = process.env.LOCATION_COLUMN_ID || "location_mm2w35dr"
 console.log("DEBUG ADDRESS_COLUMN_ID env value:", JSON.stringify(ADDRESS_COLUMN_ID));
 
 
-function buildGoogleEarthUrl(address, lat, lng) {
+// Plain address search only - no manual camera coordinates. This matches
+// what happens when you type an address directly into Google Earth's own
+// search box, which is what makes Earth drop its location marker/arrow.
+// Adding our own @lat,lng,... camera override was suppressing that marker.
+function buildGoogleEarthUrl(address) {
 
     const formattedAddress = address.trim().replace(/\s+/g, "+");
 
-    // Closer, angled 3D view instead of straight-down/zoomed-out:
-    // altitude ~130m, distance ~40m, tilt ~55°, slight heading rotation
-    return `https://earth.google.com/web/search/${formattedAddress}/@${lat},${lng},130a,40d,35y,10h,55t,0r`;
+    return `https://earth.google.com/web/search/${formattedAddress}`;
 
 }
 
@@ -115,7 +117,7 @@ const lng = event.value?.lng ?? event.previousValue?.lng;
 
             }
 
-            const earthUrl = buildGoogleEarthUrl(newAddress, lat, lng);
+            const earthUrl = buildGoogleEarthUrl(newAddress);
 
             console.log("DEBUG generated earthUrl:", earthUrl);
 
