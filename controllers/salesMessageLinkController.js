@@ -6,6 +6,10 @@ const PHONE_COLUMN_ID = "text_mm2wf3qg";
 const LINK_COLUMN_ID = "link_mm6mvvd2";
 const BOARD_ID = "18409956420";
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function handleSalesMessageLinkWebhook(req, res) {
 
     const challenge = req.body?.challenge || req.query?.challenge;
@@ -30,6 +34,10 @@ async function handleSalesMessageLinkWebhook(req, res) {
             console.log("No itemId found in webhook payload — check payload shape above.");
             return;
         }
+
+        // Phone column is often still empty at the instant an item is
+        // created, so wait before reading the item.
+        await sleep(5000);
 
         const item = await getItem(itemId);
         const phoneColumn = item?.column_values?.find(c => c.id === PHONE_COLUMN_ID);
